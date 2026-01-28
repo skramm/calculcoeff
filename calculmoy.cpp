@@ -191,22 +191,22 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 void
 compute(
 	const ListeModules& listeMod,
-	std::vector<Notes>& vnotes,   ///< les notes, auxquelles on va ajouter les moy par UE
-	std::string fname
+	std::vector<Notes>& vnotes   ///< les notes, auxquelles on va ajouter les moy par UE
+//	std::string fname
 )
 {
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
 	const auto& vcoeff = listeMod.v_liste;
-	for( const auto& etud: vnotes )
+	for( auto& etud: vnotes )
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
-		for( const auto& ue: listeMod.v_UE)
+		for( const auto& ue: listeMod.v_UE) // pour chaque UE
 		{
 			std::cout << "UE=" << ue << "\n";
 			float sum_UE = 0.;
-			for( const auto& note: etud._notes )
+			for( const auto& note: etud._notes ) // on itere sur chaque note
 			{
-//				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
+				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
 				auto it = std::find_if(
 					vcoeff.begin(),
 					vcoeff.end(),
@@ -227,16 +227,16 @@ compute(
 //				for( const auto cc: c )
 //					std::cout << "enumerate:" << cc.first << "-" << cc.second << "\n";
 					
-//				std::cout << "coef pour ue " << ue << "=" << c.at(ue) << "\n";
+				std::cout << "coef pour ue " << ue << "=" << c.at(ue) << "\n";
 				sum_UE += note.second * c.at(ue);
-				
+//				std::cout << "sum_UE=" << sum_UE << '\n';
 			}
+//			std::cout << "total coeff pour ue " << ue << "=" << listeMod.m_tot_UE.at(ue) << "\n";
 			std::cout << "sum_UE=" << sum_UE
-				<< " => " << sum_UE*20./listeMod.m_tot_UE.at(ue)
+				<< " => " << sum_UE / listeMod.m_tot_UE.at(ue)
 				<< "/20\n";
+			etud._moy[ue] = sum_UE / listeMod.m_tot_UE.at(ue);
 		}
-//		for( const auto note: vnotes )
-		
 	}
 
 }
@@ -302,7 +302,26 @@ printCoeffs( const std::vector<Module>& coeffs )
 }
 
 //--------------------------------------------------
-int main( int argc, const char* argv[] )
+void
+printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod )
+{
+	const char* sep = ";";
+	std::cout << "\nNuméro" << sep << "Nom";
+	for( const auto& ue: listeMod.v_UE )
+		std::cout << sep << ue;
+	std::cout << "\n";
+	
+	for( const auto& etud: vnotes )
+	{
+		std::cout << etud._id << sep << etud._nom;
+//		for( const 
+
+	std::cout << "\n";
+	}
+}
+//--------------------------------------------------
+int
+main( int argc, const char* argv[] )
 {
 	if( argc < 3 )
 	{
@@ -313,6 +332,8 @@ int main( int argc, const char* argv[] )
 	listeMod.print();
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
-	compute( listeMod, vnotes, "bilan.csv" );
+	compute( listeMod, vnotes );
+	printMoyennes( vnotes, listeMod );
+	
 }
 
