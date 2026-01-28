@@ -57,7 +57,7 @@ readCSV( std::string filename )
 	return out;
 }
 
-	
+
 //--------------------------------------------------
 struct Module
 {
@@ -78,6 +78,52 @@ struct Module
 			std::cout << __FUNCTION__ << "(): code=" << _code << " i=" << i << " coeff=" << _coeffue.back() << "\n";
 		}*/
 	}
+	void print() const
+	{
+		std::cout << "Module: sem=" << _semestre << " _code=" << _code << '\n';
+		uint32_t sum_coeff = 0;
+		for( const auto& m: _coeffue )
+		{
+			std::cout << " -" << m.first << "-" << m.second << "\n";
+			sum_coeff += m.second;
+		}
+		std::cout << "Total coeff de "<< _code << "=" << sum_coeff << '\n';
+	}
+};
+
+//--------------------------------------------------
+struct ListeModules
+{
+	std::vector<Module> v_liste; ///< liste de modules pédagogiques
+	std::map<std::string,uint32_t> m_tot_UE; ///< totaux par UE
+	std::vector<std::string> v_UE; ///< noms des UE
+	
+/// Calcul totaux par UE
+	void calculTotaux()
+	{
+		assert( v_UE.size() ); // impossible de calculer les totaux par UE.. si on a pas d'UE!
+		for( const auto& ue: v_UE )
+			m_tot_UE[ ue ] = 0; // on initialise lews totaux a 0 pour chaque UE
+			
+		for( const auto& mod: v_liste )
+		{
+			for( const auto& coeff: mod._coeffue )
+				m_tot_UE[ coeff.first ] += coeff.second;
+		}
+	}
+	void print()
+	{
+		std::cout << "*** ListeModules ***\n-liste UE:\n";
+		for( const auto& ue: v_UE )
+			std::cout << ue << " ";
+		std::cout << "\n-Totaux:\n";
+		for( const auto& tot: m_tot_UE )
+			std::cout << "  -" << tot.first << " - " << tot.second << "\n";
+		std::cout << "-Modules:\n";
+		for( const auto& m: v_liste )
+			m.print();
+
+	}
 };
 
 //--------------------------------------------------
@@ -94,8 +140,10 @@ struct Notes
 //--------------------------------------------------
 /// Renvoie une liste d'objets de type \c Notes
 auto
-readCSV_notes( std::string fname, const std::vector<Module>& coeffs )
+readCSV_notes( std::string fname, const ListeModules& listeMod )
 {
+
+	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
 	assert( liste[0].size() > 2 ); // la ligne doit contenir plus de 2 items (num, nom, plus les notes par module)
@@ -138,28 +186,27 @@ readCSV_notes( std::string fname, const std::vector<Module>& coeffs )
 	return v_notes;
 
 }
-//#if 0
 
 //--------------------------------------------------
 void
 compute(
-	const std::vector<std::string>& vUE,
-	const std::vector<Module>& vcoeff,
-	std::vector<Notes>&        vnotes,
+	const ListeModules& listeMod,
+	std::vector<Notes>& vnotes,   ///< les notes, auxquelles on va ajouter les moy par UE
 	std::string fname
 )
 {
-	std::cout << "nb etud=" << vnotes.size() << '\n';
+	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
+	const auto& vcoeff = listeMod.v_liste;
 	for( const auto& etud: vnotes )
 	{
-		std::cout << "etud=" << etud._nom << '\n';
-		float sum_UE = 0.;
-		for( const auto& ue: vUE)
+		std::cout << "\n* etud=" << etud._nom << '\n';
+		for( const auto& ue: listeMod.v_UE)
 		{
 			std::cout << "UE=" << ue << "\n";
+			float sum_UE = 0.;
 			for( const auto& note: etud._notes )
 			{
-				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
+//				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
 				auto it = std::find_if(
 					vcoeff.begin(),
 					vcoeff.end(),
@@ -172,14 +219,22 @@ compute(
 					std::cerr << "Erreur, impossible de trouver " << note.first << " dans les coeffs\n";
 					std::exit(3);
 				}
-				std::cout << "trouvé mod " << it->_code << '\n';
+//				std::cout << "trouvé mod " << it->_code << '\n';
+	
+//			it->print();			
+//				auto c = it->_coeffue.at(note.first);
+				auto c = it->_coeffue;
+//				for( const auto cc: c )
+//					std::cout << "enumerate:" << cc.first << "-" << cc.second << "\n";
+					
+//				std::cout << "coef pour ue " << ue << "=" << c.at(ue) << "\n";
+				sum_UE += note.second * c.at(ue);
 				
-				auto c = it->_coeffue.at(note.first);
-				std::cout << "note.first=" << note.first << " c=" << c << "\n";
-/*				sum_UE += note.second * c;*/
 			}
+			std::cout << "sum_UE=" << sum_UE
+				<< " => " << sum_UE*20./listeMod.m_tot_UE.at(ue)
+				<< "/20\n";
 		}
-		std::cout << "sum_UE=" << sum_UE << "\n";
 //		for( const auto note: vnotes )
 		
 	}
@@ -198,20 +253,20 @@ Colonnes:
  - UE...
 */
 auto
-//std::pair<std::vector<std::string>,std::vector<Module>>
 readCSV_coeff( std::string fname )
 {
-	std::vector<Module> coeffs;
+//	std::vector<Module> coeffs;
+	ListeModules listeMod;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
 
 	auto nb_UE = liste.at(0).size()-3;
 	std::cout << "-lecture de " << liste.size()-1 << " modules, dans " << nb_UE << " UE\n";
-	std::vector<std::string> v_UE( nb_UE );
+//	std::vector<std::string> v_UE( nb_UE );
 	for( uint8_t i=0; i<nb_UE; i++ )
 	{
-		v_UE[i] = liste.at(0).at(3+i);
-		std::cout << " -UE" << i << ": " << v_UE[i] << '\n';
+		listeMod.v_UE.push_back( liste.at(0).at(3+i) );
+		std::cout << " -UE" << i << ": " << listeMod.v_UE[i] << '\n';
 	}
 
 	for( uint16_t i=1; i<liste.size(); i++ ) // ç partir de la 2ème ligne
@@ -225,14 +280,14 @@ readCSV_coeff( std::string fname )
 		for( uint16_t j=3; j<liste[i].size(); j++ )
 		{
 //			std::cout <<__FUNCTION__ << "() j=" << j << std::endl;
-			m._coeffue[ v_UE[j-3] ] = std::stoi( liste[i][j] ) ;
+			m._coeffue[ listeMod.v_UE[j-3] ] = std::stoi( liste[i][j] ) ;
 //			std::cout << __FUNCTION__ << "(): coeff=" << m._coeffue[ UE[j-3] ] << "\n";
 		}
-		
-		coeffs.push_back( m );
-		
+		listeMod.v_liste.push_back( m );
+		m.print();
 	}
-	return std::make_pair(v_UE,coeffs);
+	listeMod.calculTotaux();
+	return listeMod;
 }
 //--------------------------------------------------
 void
@@ -254,9 +309,10 @@ int main( int argc, const char* argv[] )
 		std::cerr << "usage calculmoy coeff_file.csv notes.csv\n";
 		return 1;
 	}
-	auto ue_coeffs = readCSV_coeff( std::string(argv[1]) );
-	printCoeffs( ue_coeffs.second );
-	auto vnotes = readCSV_notes( std::string(argv[2]), ue_coeffs.second );
-	compute( ue_coeffs.first, ue_coeffs.second, vnotes, "bilan.csv" );
+	auto listeMod = readCSV_coeff( std::string(argv[1]) );
+	listeMod.print();
+//	printCoeffs( ue_coeffs.second.v_liste );
+	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
+	compute( listeMod, vnotes, "bilan.csv" );
 }
 
