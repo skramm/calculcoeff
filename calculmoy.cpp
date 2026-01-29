@@ -63,7 +63,8 @@ struct Module
 {
 	int              _semestre;
 	std::string      _code;
-	std::map<std::string,int> _coeffue; ///< coeff pour chaque UE, identifiée par son nom
+//	std::map<std::string,int> _coeffue; ///< coeff pour chaque UE, identifiée par son nom
+	std::vector<int> _coeffue; ///< coeff pour chaque UE, identifiée par son index
 	
 	Module( const std::vector<std::string>& vec )
 	{
@@ -82,10 +83,11 @@ struct Module
 	{
 		std::cout << "Module: sem=" << _semestre << " _code=" << _code << '\n';
 		uint32_t sum_coeff = 0;
-		for( const auto& m: _coeffue )
+		int i=0;
+		for( const auto& c: _coeffue )
 		{
-			std::cout << " -" << m.first << "-" << m.second << "\n";
-			sum_coeff += m.second;
+			std::cout << " -" << i++ << ":" << c << "\n";
+			sum_coeff += c;
 		}
 		std::cout << "Total coeff de "<< _code << "=" << sum_coeff << '\n';
 	}
@@ -95,20 +97,22 @@ struct Module
 struct ListeModules
 {
 	std::vector<Module> v_liste; ///< liste de modules pédagogiques
-	std::map<std::string,uint32_t> m_tot_UE; ///< totaux par UE
+	std::vector<uint32_t> v_totUE; ///< totaux par UE
 	std::vector<std::string> v_UE; ///< noms des UE
 	
 /// Calcul totaux par UE
 	void calculTotaux()
 	{
 		assert( v_UE.size() ); // impossible de calculer les totaux par UE.. si on a pas d'UE!
-		for( const auto& ue: v_UE )
-			m_tot_UE[ ue ] = 0; // on initialise lews totaux a 0 pour chaque UE
+		v_totUE.resize( v_UE.size() );
+
+		for( auto& tot: v_totUE )
+			tot = 0; // on initialise tous les totaux a 0 (pour chaque UE)
 			
-		for( const auto& mod: v_liste )
+		for( uint16_t i=0; i<v_UE.size(); i++ )
 		{
-			for( const auto& coeff: mod._coeffue )
-				m_tot_UE[ coeff.first ] += coeff.second;
+			for( const auto& mod: v_liste )
+				v_totUE[i] += mod._coeffue[i];
 		}
 	}
 	void print()
@@ -117,8 +121,8 @@ struct ListeModules
 		for( const auto& ue: v_UE )
 			std::cout << ue << " ";
 		std::cout << "\n-Totaux:\n";
-		for( const auto& tot: m_tot_UE )
-			std::cout << "  -" << tot.first << " - " << tot.second << "\n";
+		for( const auto& tot: v_totUE )
+			std::cout << "  -" << tot << "\n";
 		std::cout << "-Modules:\n";
 		for( const auto& m: v_liste )
 			m.print();
@@ -133,7 +137,7 @@ struct Notes
 	std::string    _nom;
 	std::string    _id;
 	std::map<std::string,float> _notes; ///< notes pour chaque module
-	std::map<std::string,float> _moy;   ///< moyenne pour chaque UE (résultat du calcul)
+	std::vector<float> _moy;   ///< moyenne pour chaque UE (résultat du calcul)
 };
 
 
@@ -142,7 +146,6 @@ struct Notes
 auto
 readCSV_notes( std::string fname, const ListeModules& listeMod )
 {
-
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
@@ -188,6 +191,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 }
 
 //--------------------------------------------------
+#if 1
 void
 compute(
 	const ListeModules& listeMod,
@@ -219,28 +223,33 @@ compute(
 					std::cerr << "Erreur, impossible de trouver " << note.first << " dans les coeffs\n";
 					std::exit(3);
 				}
-//				std::cout << "trouvé mod " << it->_code << '\n';
-	
+				
+				std::cout << "trouvé mod " << it->_code << '\n';
+				auto index = it-std::begin(vcoeff);
+				std::cout << "index=" << index << " _coeffue[index]=" << listeMod._coeffue[index] << '\n';
+				etud._moy[index] += note * listeMod._coeffue[index];
+				
 //			it->print();			
 //				auto c = it->_coeffue.at(note.first);
 				auto c = it->_coeffue;
 //				for( const auto cc: c )
 //					std::cout << "enumerate:" << cc.first << "-" << cc.second << "\n";
 					
-				std::cout << "coef pour ue " << ue << "=" << c.at(ue) << "\n";
-				sum_UE += note.second * c.at(ue);
+//				std::cout << "coef pour ue " << ue << ", index" << c << "\n";
+//				sum_UE += note.second * c.at(ue);
 //				std::cout << "sum_UE=" << sum_UE << '\n';
 			}
 //			std::cout << "total coeff pour ue " << ue << "=" << listeMod.m_tot_UE.at(ue) << "\n";
-			std::cout << "sum_UE=" << sum_UE
+
+/*			std::cout << "sum_UE=" << sum_UE
 				<< " => " << sum_UE / listeMod.m_tot_UE.at(ue)
 				<< "/20\n";
 			etud._moy[ue] = sum_UE / listeMod.m_tot_UE.at(ue);
-		}
+*/		}
 	}
 
 }
-//#endif
+#endif
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
 /**
@@ -263,13 +272,13 @@ readCSV_coeff( std::string fname )
 	auto nb_UE = liste.at(0).size()-3;
 	std::cout << "-lecture de " << liste.size()-1 << " modules, dans " << nb_UE << " UE\n";
 //	std::vector<std::string> v_UE( nb_UE );
-	for( uint8_t i=0; i<nb_UE; i++ )
+	for( uint16_t i=0; i<nb_UE; i++ )
 	{
 		listeMod.v_UE.push_back( liste.at(0).at(3+i) );
 		std::cout << " -UE" << i << ": " << listeMod.v_UE[i] << '\n';
 	}
 
-	for( uint16_t i=1; i<liste.size(); i++ ) // ç partir de la 2ème ligne
+	for( uint16_t i=1; i<liste.size(); i++ ) // à partir de la 2ème ligne
 	{
 		Module m( liste[i] );
 //		std::cout << __FUNCTION__ << "(): i=" << i<< " code=" << m._code << "\n";
@@ -279,9 +288,8 @@ readCSV_coeff( std::string fname )
 		
 		for( uint16_t j=3; j<liste[i].size(); j++ )
 		{
-//			std::cout <<__FUNCTION__ << "() j=" << j << std::endl;
-			m._coeffue[ listeMod.v_UE[j-3] ] = std::stoi( liste[i][j] ) ;
-//			std::cout << __FUNCTION__ << "(): coeff=" << m._coeffue[ UE[j-3] ] << "\n";
+			std::cout <<__FUNCTION__ << "() j=" << j << " note=" << std::stoi( liste[i][j] ) << std::endl;
+			m._coeffue.push_back( std::stoi( liste[i][j] ) );
 		}
 		listeMod.v_liste.push_back( m );
 		m.print();
@@ -296,8 +304,9 @@ printCoeffs( const std::vector<Module>& coeffs )
 	for( const auto& mod: coeffs )
 	{
 		std::cout << "code=" << mod._code << " sem=" << mod._semestre << "\n";
+		int i=0;
 		for( const auto& m: mod._coeffue )
-			std::cout << "  -"<< m.first << ":" << m.second << "\n";
+			std::cout << "  -"<< i++ << ":" << m << "\n";
 	}
 }
 
@@ -333,7 +342,7 @@ main( int argc, const char* argv[] )
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
-	printMoyennes( vnotes, listeMod );
+//	printMoyennes( vnotes, listeMod );
 	
 }
 
