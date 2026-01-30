@@ -25,7 +25,7 @@ Champ fichier de notes:
 const auto idx_num   = 0;
 const auto idx_nom   = 1;
 const auto idx_pre   = 2;
-const auto idx_note0 = 3;  ///< premier champ de note
+const auto idx_note0 = 4;  ///< premier champ de note
 const bool g_anonyme = false;
 
 //--------------------------------------------------
@@ -171,23 +171,28 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 	{
 		auto mod = liste[0].at(i);
 		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
-		v_mod.push_back( mod );
+		if( mod.size() )
+			v_mod.push_back( mod );
 
 // vérification que les modules existent
 //		auto f = std::find( coeffs
 	}
+	std::cout << "Fichier de notes: " << v_mod.size() << " modules en 1ere ligne\n";
 
 // lecture des notes
 	std::vector<Notes> v_notes;
 	for( uint16_t i=1; i<liste.size(); i++ ) // on saute la 1ere ligne
 	{
 		auto line = liste[i];
-		std::cout << "line size="<< line.size() << " coeffs.size()=" << coeffs.size() << "\n";
+//		std::cout << "line size="<< line.size() << " coeffs.size()=" << coeffs.size() << "\n";
 
-
-		if( line.size() != coeffs.size() + idx_note0 )
+		if( line.size() > coeffs.size() + idx_note0 )
 		{
 			std::cerr << "Erreur ligne " << i << ": " << line.size() - idx_note0 << " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
+			auto ii=0;
+			for( const auto& l: line )
+				std::cout << " -" << ii++ << ":'" << l << "' len=" << l.size() << '\n';
+
 			std::exit(5);
 		}
 		Notes notes( line );
@@ -246,7 +251,7 @@ compute(
 				);
 				if( it == v_listeMod.end() )
 				{
-					std::cerr << "Erreur, impossible de trouver " << note.first << " dans les coeffs\n";
+					std::cerr << "Erreur, impossible de trouver le module '" << note.first << "' dans les coeffs\n";
 					std::exit(3);
 				}
 
@@ -293,12 +298,16 @@ readCSV_coeff( std::string fname )
 //		std::cout << __FUNCTION__ << "(): i=" << i<< " code=" << m._code << "\n";
 
 // vérification que chaque ligne a bien le bon nbe de valeurs
+		std::cout << "liste size="<< liste[i].size() << "\n";
 		assert( liste[i].size() == nb_UE + 3 );
 
 		for( uint16_t j=3; j<liste[i].size(); j++ )
 		{
-			std::cout <<__FUNCTION__ << "() j=" << j << " coeff=" << std::stoi( liste[i][j] ) << std::endl;
-			m._coeffue.push_back( std::stoi( liste[i][j] ) );
+//			std::cout <<__FUNCTION__ << "() j=" << j << " coeff=" << std::stoi( liste[i][j] ) << std::endl;
+			auto value = 0;
+			if( liste[i][j].size() )
+				value = std::stoi( liste[i][j] );
+			m._coeffue.push_back( value );
 		}
 		listeMod.v_liste.push_back( m );
 		m.print();
@@ -326,7 +335,7 @@ printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, s
 	std::ofstream f(fout);
 	if( !f.is_open() )
 	{
-		std::cerr << "Error: cannot create output file " << fout << '\n';
+		std::cerr << "Erreur: impossible de créer fichier '" << fout << "'\n";
 		std::exit(4);
 	}
 
@@ -369,5 +378,6 @@ main( int argc, const char* argv[] )
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
 	printMoyennes( vnotes, listeMod, fout );
+	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
 
