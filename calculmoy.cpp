@@ -26,7 +26,7 @@ const auto idx_num   = 0;
 const auto idx_nom   = 1;
 const auto idx_pre   = 2;
 const auto idx_note0 = 3;  ///< premier champ de note
-const bool anonyme = false;
+const bool g_anonyme = false;
 
 //--------------------------------------------------
 /// Split a line of CSV file into fields
@@ -91,7 +91,7 @@ struct Module
 	}
 	void print() const
 	{
-		std::cout << "Module: sem=" << _semestre << " _code=" << _code << '\n';
+		std::cout << "Module: sem=" << _semestre << " code=" << _code << '\n';
 		uint32_t sum_coeff = 0;
 		int i=0;
 		for( const auto& c: _coeffue )
@@ -149,8 +149,11 @@ struct Notes
 	std::string    _id;
 	std::map<std::string,float> _notes; ///< notes pour chaque module
 	std::vector<float> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
-};
 
+	Notes( const std::vector<std::string>& line )
+		:_nom{line[idx_nom]}, _prenom{line[idx_pre]}, _id{line[idx_num]}
+	{}
+};
 
 //--------------------------------------------------
 /// Renvoie une liste d'objets de type \c Notes
@@ -179,16 +182,21 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 	for( uint16_t i=1; i<liste.size(); i++ ) // on saute la 1ere ligne
 	{
 		auto line = liste[i];
-		assert( line.size() == coeffs.size() + idx_note0 );
-		Notes notes;
-		notes._nom = line[1];
-		notes._id = line[0];
+		std::cout << "line size="<< line.size() << " coeffs.size()=" << coeffs.size() << "\n";
+
+
+		if( line.size() != coeffs.size() + idx_note0 )
+		{
+			std::cerr << "Erreur ligne " << i << ": " << line.size() - idx_note0 << " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
+			std::exit(5);
+		}
+		Notes notes( line );
 		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
 		for( uint16_t j=idx_note0; j<line.size(); j++ )
 		{
 			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-idx_note0] << "\n";
 			auto value = 0.;
-			if( line[j] != "ABI" )
+			if( line[j] != "ABI" && line[j].size() != 0 )
 				value = std::stof( line[j] );
 			if( value < 0. || value > 20. )
 			{
@@ -323,7 +331,9 @@ printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, s
 	}
 
 	const char* sep = ";";
-	f << "\nNuméro" << sep << "Nom";
+	f << "Numéro";
+	if( !g_anonyme )
+		f << sep << "Nom" << sep << "Prenom";
 	for( const auto& ue: listeMod.v_UE )
 		f << sep << ue;
 	f << "\n" << std::setprecision(4);
@@ -331,7 +341,7 @@ printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, s
 	for( const auto& etud: vnotes )
 	{
 		f << etud._id;
-		if( !anonyme )
+		if( !g_anonyme )
 			f << sep << etud._nom << sep << etud._prenom;
 		for( const auto& moy: etud._moyUE )
 			f << sep << moy;

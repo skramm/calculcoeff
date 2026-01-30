@@ -22,6 +22,11 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
+		<Unit filename="README.md" />
+		<Unit filename="buildrun.sh" />
+		<Unit filename="calculmoy.cpp" />
+		<Unit filename="coeffs.csv" />
+		<Unit filename="liste_notes.csv" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>

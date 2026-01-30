@@ -1,4 +1,4 @@
-set -x
+set +x
 g++ -o calculmoy calculmoy.cpp
 if [ $? = 0 ]
 then
