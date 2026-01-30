@@ -1,4 +1,12 @@
 /**
+\author S. Kramm
+
+Champ fichier de notes:
+- id (numéro étudiant)
+- nom
+- prénom
+- date naissance
+- notes
 */
 
 #include <string>
@@ -10,7 +18,15 @@
 #include <map>
 #include <algorithm>
 //#include <chrono>
-//#include <iomanip>
+#include <iomanip>
+
+
+// constantes
+const auto idx_num   = 0;
+const auto idx_nom   = 1;
+const auto idx_pre   = 2;
+const auto idx_note0 = 3;  ///< premier champ de note
+const bool anonyme = false;
 
 //--------------------------------------------------
 /// Split a line of CSV file into fields
@@ -59,25 +75,19 @@ readCSV( std::string filename )
 
 
 //--------------------------------------------------
+/// Module pédagogique
 struct Module
 {
 	int              _semestre;
 	std::string      _code;
-//	std::map<std::string,int> _coeffue; ///< coeff pour chaque UE, identifiée par son nom
 	std::vector<int> _coeffue; ///< coeff pour chaque UE, identifiée par son index
-	
+
 	Module( const std::vector<std::string>& vec )
 	{
 		assert( vec.size()>3 );
 		_semestre = std::stoi( vec[0] );
 		_code = vec[1];
 		std::cout << __FUNCTION__ << "() semestre=" << _semestre << " code=" << _code << std::endl;
-/*		for( uint8_t i=3; i<vec.size(); i++ )
-		{
-		std::cout <<"i=" << i << " vec[i]=" << vec[i] << std::endl;
-			_coeffue.push_back( std::stoi( vec[i] ) );
-			std::cout << __FUNCTION__ << "(): code=" << _code << " i=" << i << " coeff=" << _coeffue.back() << "\n";
-		}*/
 	}
 	void print() const
 	{
@@ -99,7 +109,7 @@ struct ListeModules
 	std::vector<Module> v_liste; ///< liste de modules pédagogiques
 	std::vector<uint32_t> v_totUE; ///< totaux par UE
 	std::vector<std::string> v_UE; ///< noms des UE
-	
+
 /// Calcul totaux par UE
 	void calculTotaux()
 	{
@@ -108,7 +118,7 @@ struct ListeModules
 
 		for( auto& tot: v_totUE )
 			tot = 0; // on initialise tous les totaux a 0 (pour chaque UE)
-			
+
 		for( uint16_t i=0; i<v_UE.size(); i++ )
 		{
 			for( const auto& mod: v_liste )
@@ -135,9 +145,10 @@ struct ListeModules
 struct Notes
 {
 	std::string    _nom;
+	std::string    _prenom;
 	std::string    _id;
 	std::map<std::string,float> _notes; ///< notes pour chaque module
-	std::vector<float> _moy;   ///< moyenne pour chaque UE (résultat du calcul)
+	std::vector<float> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
 };
 
 
@@ -149,40 +160,42 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
-	assert( liste[0].size() > 2 ); // la ligne doit contenir plus de 2 items (num, nom, plus les notes par module)
+	assert( liste[0].size() > idx_note0 ); // la ligne doit contenir plus de 4 items (num, nom, plus les notes par module)
 
 // lecture des intitulés des modules
 	std::vector<std::string> v_mod;
-	for( uint16_t i=2; i<liste[0].size(); i++ )
+	for( uint16_t i=idx_note0; i<liste[0].size(); i++ )
 	{
 		auto mod = liste[0].at(i);
 		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
 		v_mod.push_back( mod );
-		
+
 // vérification que les modules existent
 //		auto f = std::find( coeffs
 	}
 
 // lecture des notes
 	std::vector<Notes> v_notes;
-	for( uint16_t i=1; i<liste.size(); i++ )
+	for( uint16_t i=1; i<liste.size(); i++ ) // on saute la 1ere ligne
 	{
 		auto line = liste[i];
-		assert( line.size() == coeffs.size() + 2 );
+		assert( line.size() == coeffs.size() + idx_note0 );
 		Notes notes;
 		notes._nom = line[1];
 		notes._id = line[0];
 		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
-		for( uint16_t j=2; j<line.size(); j++ )
+		for( uint16_t j=idx_note0; j<line.size(); j++ )
 		{
-			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-2] << "\n";
-			auto value = std::stof( line[j] );
+			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-idx_note0] << "\n";
+			auto value = 0.;
+			if( line[j] != "ABI" )
+				value = std::stof( line[j] );
 			if( value < 0. || value > 20. )
 			{
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
 				std::exit(2);
 			}
-			notes._notes[ v_mod[j-2] ] = value;
+			notes._notes[ v_mod.at(j-idx_note0) ] = value;
 		}
 		v_notes.push_back( notes );
 	}
@@ -191,72 +204,62 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 }
 
 //--------------------------------------------------
-#if 1
+/// Calcul des moyennes par UE, en fonction des coefficients de chaque module
 void
 compute(
-	const ListeModules& listeMod,
-	std::vector<Notes>& vnotes   ///< les notes, auxquelles on va ajouter les moy par UE
-//	std::string fname
+	const ListeModules& listeMod, ///< les modules pédagogiques
+	std::vector<Notes>& vnotes    ///< les notes, auxquelles on va ajouter les moy par UE
 )
 {
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
-	const auto& vcoeff = listeMod.v_liste;
+
+	auto nbUE = listeMod.v_UE.size();
+
+	const auto& v_listeMod = listeMod.v_liste;
 	for( auto& etud: vnotes )
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
-		for( const auto& ue: listeMod.v_UE) // pour chaque UE
+		etud._moyUE.resize( nbUE );
+
+		for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
 		{
-			std::cout << "UE=" << ue << "\n";
+			auto ue = listeMod.v_UE[idxUE];
+			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
 			float sum_UE = 0.;
 			for( const auto& note: etud._notes ) // on itere sur chaque note
 			{
 				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
 				auto it = std::find_if(
-					vcoeff.begin(),
-					vcoeff.end(),
+					v_listeMod.begin(),
+					v_listeMod.end(),
 					[&note]                // lambda
 					(const Module& m)
 					{ return m._code == note.first;}
 				);
-				if( it == vcoeff.end() )
+				if( it == v_listeMod.end() )
 				{
 					std::cerr << "Erreur, impossible de trouver " << note.first << " dans les coeffs\n";
 					std::exit(3);
 				}
-				
-				std::cout << "trouvé mod " << it->_code << '\n';
-				auto index = it-std::begin(vcoeff);
-				std::cout << "index=" << index << " _coeffue[index]=" << listeMod._coeffue[index] << '\n';
-				etud._moy[index] += note * listeMod._coeffue[index];
-				
-//			it->print();			
-//				auto c = it->_coeffue.at(note.first);
+
 				auto c = it->_coeffue;
-//				for( const auto cc: c )
-//					std::cout << "enumerate:" << cc.first << "-" << cc.second << "\n";
-					
-//				std::cout << "coef pour ue " << ue << ", index" << c << "\n";
-//				sum_UE += note.second * c.at(ue);
-//				std::cout << "sum_UE=" << sum_UE << '\n';
+
+				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << "\n";
+				sum_UE += note.second * c.at(idxUE);
+				std::cout << "sum_UE=" << sum_UE << '\n';
 			}
-//			std::cout << "total coeff pour ue " << ue << "=" << listeMod.m_tot_UE.at(ue) << "\n";
-
-/*			std::cout << "sum_UE=" << sum_UE
-				<< " => " << sum_UE / listeMod.m_tot_UE.at(ue)
-				<< "/20\n";
-			etud._moy[ue] = sum_UE / listeMod.m_tot_UE.at(ue);
-*/		}
+			etud._moyUE[idxUE] = sum_UE / listeMod.v_totUE.at(idxUE);
+			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
+		}
 	}
-
 }
-#endif
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
 /**
 Colonnes:
  - semestre
  - code
- - nom 
+ - nom
  - UE1
  - UE2
  - UE...
@@ -264,14 +267,12 @@ Colonnes:
 auto
 readCSV_coeff( std::string fname )
 {
-//	std::vector<Module> coeffs;
 	ListeModules listeMod;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
 
 	auto nb_UE = liste.at(0).size()-3;
 	std::cout << "-lecture de " << liste.size()-1 << " modules, dans " << nb_UE << " UE\n";
-//	std::vector<std::string> v_UE( nb_UE );
 	for( uint16_t i=0; i<nb_UE; i++ )
 	{
 		listeMod.v_UE.push_back( liste.at(0).at(3+i) );
@@ -285,10 +286,10 @@ readCSV_coeff( std::string fname )
 
 // vérification que chaque ligne a bien le bon nbe de valeurs
 		assert( liste[i].size() == nb_UE + 3 );
-		
+
 		for( uint16_t j=3; j<liste[i].size(); j++ )
 		{
-			std::cout <<__FUNCTION__ << "() j=" << j << " note=" << std::stoi( liste[i][j] ) << std::endl;
+			std::cout <<__FUNCTION__ << "() j=" << j << " coeff=" << std::stoi( liste[i][j] ) << std::endl;
 			m._coeffue.push_back( std::stoi( liste[i][j] ) );
 		}
 		listeMod.v_liste.push_back( m );
@@ -312,37 +313,51 @@ printCoeffs( const std::vector<Module>& coeffs )
 
 //--------------------------------------------------
 void
-printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod )
+printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
 {
+	std::ofstream f(fout);
+	if( !f.is_open() )
+	{
+		std::cerr << "Error: cannot create output file " << fout << '\n';
+		std::exit(4);
+	}
+
 	const char* sep = ";";
-	std::cout << "\nNuméro" << sep << "Nom";
+	f << "\nNuméro" << sep << "Nom";
 	for( const auto& ue: listeMod.v_UE )
-		std::cout << sep << ue;
-	std::cout << "\n";
-	
+		f << sep << ue;
+	f << "\n" << std::setprecision(4);
+
 	for( const auto& etud: vnotes )
 	{
-		std::cout << etud._id << sep << etud._nom;
-//		for( const 
-
-	std::cout << "\n";
+		f << etud._id;
+		if( !anonyme )
+			f << sep << etud._nom << sep << etud._prenom;
+		for( const auto& moy: etud._moyUE )
+			f << sep << moy;
+		f << "\n";
 	}
+		f << "\n";
 }
 //--------------------------------------------------
 int
 main( int argc, const char* argv[] )
 {
+	auto fout="moy_ue.csv";
 	if( argc < 3 )
 	{
-		std::cerr << "usage calculmoy coeff_file.csv notes.csv\n";
+		std::cerr << "usage calculmoy coeff_file.csv notes.csv [outputfile]\n";
 		return 1;
+	}
+	if( argc > 3 )
+	{
+		fout = argv[3];
 	}
 	auto listeMod = readCSV_coeff( std::string(argv[1]) );
 	listeMod.print();
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
-//	printMoyennes( vnotes, listeMod );
-	
+	printMoyennes( vnotes, listeMod, fout );
 }
 

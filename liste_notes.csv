@@ -1,6 +1,7 @@
-num;nom;R123;R4456;R777
-123;Paul;8.5;2;12
-456;Pierre;11;12;13
-789;Nina;5;6;17
+num;nom;prenom;R123;R4456;R777
+123;Truc;Paul;8.5;2;12
+456;Bidule;Pierre;11;12;13
+789;Machin;Nina;5;6;17
+777;Jack;Joe;8;ABI;7
 
 
