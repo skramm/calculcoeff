@@ -17,7 +17,7 @@ Champ fichier de notes:
 #include <fstream>
 #include <map>
 #include <algorithm>
-//#include <chrono>
+#include <chrono>
 #include <iomanip>
 
 
@@ -333,10 +333,10 @@ printCoeffs( const std::vector<Module>& coeffs )
 
 //--------------------------------------------------
 auto
-openfile( std::string name, std::string ext )
+openfile( std::string name, std::string date, std::string ext )
 {
 	std::ostringstream oss;
-	oss << name << "." << ext;
+	oss << name << "_" << date << "." << ext;
 	std::string fname = oss.str();
 	std::ofstream f(fname);
 	if( !f.is_open() )
@@ -348,13 +348,26 @@ openfile( std::string name, std::string ext )
 	return f;
 }
 //--------------------------------------------------
+/// from https://stackoverflow.com/questions/17223096/
+auto
+return_current_time_and_date()
+{
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%X");
+    return ss.str();
+}
+
+//--------------------------------------------------
 void
 printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
 {
 	auto tdo = "<td>";
 	auto tdc = "</td>";
-
-	auto f = openfile( fout, "html" );
+	auto date = return_current_time_and_date();
+	auto f = openfile( fout, date, "html" );
 
 	f << std::setprecision(4);
 	
@@ -362,8 +375,11 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		<< "<title>Moyennes par UE</title>\n"
 		<< "<meta charset='utf-8'>\n"
 		<< "<link rel='stylesheet' href='ue.css'>\n"
-		<< "</head><body>\n"
-		<< "<table>\n"
+		<< "</head><body>\n";
+
+	f << "<h1>Moyennes par UE</h1>\n";
+		
+	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
 	if( !g_anonyme )
 		f << "<th>Nom</th><th>Prenom</th>\n";
@@ -388,7 +404,8 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 	}
 	f << "\n";
 
-	f << "</table>\n";		
+	f << "</table>\n"
+		<< "<p>" << date << "</p>\n";
 	f << "</body></html>\n";
 	
 }
@@ -396,7 +413,7 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 void
 printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
 {
-	auto f = openfile( fout, "csv" );
+	auto f = openfile( fout, return_current_time_and_date(), "csv" );
 
 	const char* sep = ";";
 	f << "Numéro";
@@ -418,6 +435,7 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 	f << "\n";
 }
 //--------------------------------------------------
+
 int
 main( int argc, const char* argv[] )
 {
@@ -436,6 +454,7 @@ main( int argc, const char* argv[] )
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
+
 
 	printMoyennesCsv( vnotes, listeMod, fout );
 	printMoyennesHtml( vnotes, listeMod, fout );
