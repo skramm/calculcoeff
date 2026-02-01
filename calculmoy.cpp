@@ -147,8 +147,9 @@ struct Notes
 	std::string    _nom;
 	std::string    _prenom;
 	std::string    _id;
-	std::map<std::string,float> _notes; ///< notes pour chaque module
-	std::vector<float> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
+	std::map<std::string,double> _notes; ///< notes pour chaque module
+	std::vector<double> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
+	double _moy;   ///< moyenne générale
 
 	Notes( const std::vector<std::string>& line )
 		:_nom{line[idx_nom]}, _prenom{line[idx_pre]}, _id{line[idx_num]}
@@ -233,7 +234,7 @@ compute(
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
 		etud._moyUE.resize( nbUE );
-
+		auto sum = 0.;
 		for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
 		{
 			auto ue = listeMod.v_UE[idxUE];
@@ -263,7 +264,9 @@ compute(
 			}
 			etud._moyUE[idxUE] = sum_UE / listeMod.v_totUE.at(idxUE);
 			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
+			sum += etud._moyUE[idxUE];
 		}
+		etud._moy = sum / nbUE;
 	}
 }
 //--------------------------------------------------
@@ -376,18 +379,14 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
 		if( !g_anonyme )
 			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
-		auto sum = 0.;
+
 		for( const auto& moy: etud._moyUE )
-		{
 			f << tdo << moy << tdc;
-			sum += moy;
-		}
-		f << "<td class='bold'>" << sum/nbUE << tdc;
+		f << "<td class='bold'>" << etud._moy << tdc;
 		
 		f << "</tr>\n";
 	}
 	f << "\n";
-
 
 	f << "</table>\n";		
 	f << "</body></html>\n";
@@ -395,7 +394,7 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 }
 //--------------------------------------------------
 void
-printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
+printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
 {
 	auto f = openfile( fout, "csv" );
 
@@ -414,7 +413,7 @@ printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, s
 			f << sep << etud._nom << sep << etud._prenom;
 		for( const auto& moy: etud._moyUE )
 			f << sep << moy;
-		f << "\n";
+		f << sep << etud._moy << "\n";
 	}
 	f << "\n";
 }
@@ -438,7 +437,7 @@ main( int argc, const char* argv[] )
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
 
-	printMoyennes( vnotes, listeMod, fout );
+	printMoyennesCsv( vnotes, listeMod, fout );
 	printMoyennesHtml( vnotes, listeMod, fout );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
