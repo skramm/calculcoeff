@@ -329,15 +329,66 @@ printCoeffs( const std::vector<Module>& coeffs )
 }
 
 //--------------------------------------------------
+auto
+openfile( std::string name, std::string ext )
+{
+	std::ostringstream oss;
+	oss << name << "." << ext;
+	std::string fname = oss.str();
+	std::ofstream f(fname);
+	if( !f.is_open() )
+	{
+		std::cerr << "Erreur: impossible de créer fichier '" << fname << "'\n";
+		std::exit(4);
+	}
+	std::cout << "fichier " << fname << " ouvert\n";
+	return f;
+}
+//--------------------------------------------------
+void
+printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
+{
+	auto tdo = "<td>";
+	auto tdc = "</td>";
+
+	auto f = openfile( fout, "html" );
+
+	f << std::setprecision(4);
+	
+	f << "<!doctype html>\n<html><head>\n"
+		<< "<title>Moyennes par UE</title>\n"
+		<< "<meta charset='utf-8'>\n"
+		<< "<link rel='stylesheet' href='ue.css'>\n"
+		<< "</head><body>\n"
+		<< "<table>\n"
+		<< "<tr><th>Numéro</th>";
+	if( !g_anonyme )
+		f << "<th>Nom</th><th>Prenom</th>\n";
+	for( const auto& ue: listeMod.v_UE )
+		f << "<th>" << ue << "</th>\n";
+	f << "</tr>";
+
+	for( const auto& etud: vnotes )
+	{
+		f << "<tr>" << tdo << etud._id << tdc;
+		if( !g_anonyme )
+			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
+		for( const auto& moy: etud._moyUE )
+			f << tdo << moy << tdc;
+		f << "</tr>\n";
+	}
+	f << "\n";
+
+
+	f << "</table>\n";		
+	f << "</body></html>\n";
+	
+}
+//--------------------------------------------------
 void
 printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
 {
-	std::ofstream f(fout);
-	if( !f.is_open() )
-	{
-		std::cerr << "Erreur: impossible de créer fichier '" << fout << "'\n";
-		std::exit(4);
-	}
+	auto f = openfile( fout, "csv" );
 
 	const char* sep = ";";
 	f << "Numéro";
@@ -356,13 +407,13 @@ printMoyennes( const std::vector<Notes>& vnotes, const ListeModules& listeMod, s
 			f << sep << moy;
 		f << "\n";
 	}
-		f << "\n";
+	f << "\n";
 }
 //--------------------------------------------------
 int
 main( int argc, const char* argv[] )
 {
-	auto fout="moy_ue.csv";
+	auto fout="out/moy_ue";
 	if( argc < 3 )
 	{
 		std::cerr << "usage calculmoy coeff_file.csv notes.csv [outputfile]\n";
@@ -377,7 +428,9 @@ main( int argc, const char* argv[] )
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
 	compute( listeMod, vnotes );
+
 	printMoyennes( vnotes, listeMod, fout );
+	printMoyennesHtml( vnotes, listeMod, fout );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
 
