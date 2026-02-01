@@ -361,20 +361,29 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		<< "<link rel='stylesheet' href='ue.css'>\n"
 		<< "</head><body>\n"
 		<< "<table>\n"
-		<< "<tr><th>Numéro</th>";
+		<< "<tr><th></th><th>Numéro</th>";
 	if( !g_anonyme )
 		f << "<th>Nom</th><th>Prenom</th>\n";
 	for( const auto& ue: listeMod.v_UE )
 		f << "<th>" << ue << "</th>\n";
-	f << "</tr>";
+	f << "<th>MOY</th>\n";
+	f << "</tr>\n";
 
+	auto nbUE = listeMod.v_UE.size();
+	uint16_t i=0;
 	for( const auto& etud: vnotes )
 	{
-		f << "<tr>" << tdo << etud._id << tdc;
+		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
 		if( !g_anonyme )
 			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
+		auto sum = 0.;
 		for( const auto& moy: etud._moyUE )
+		{
 			f << tdo << moy << tdc;
+			sum += moy;
+		}
+		f << "<td class='bold'>" << sum/nbUE << tdc;
+		
 		f << "</tr>\n";
 	}
 	f << "\n";

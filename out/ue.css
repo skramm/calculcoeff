@@ -5,8 +5,12 @@ table {
 }
 
 td, th {
-  border: 1px solid #ddd;
-  padding: 8px;
+	border: 1px solid #ddd;
+	padding: 8px;
+
+}
+td.bold {
+	font-weight: bold;
 }
 
 tr:nth-child(even){background-color: #f2f2f2;}
