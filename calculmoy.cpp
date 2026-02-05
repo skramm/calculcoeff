@@ -20,13 +20,140 @@ Champ fichier de notes:
 #include <chrono>
 #include <iomanip>
 
+//#include <boost/format.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+
 
 // constantes
-const auto idx_num   = 0;
+//const auto idx_num   = 0;
 const auto idx_nom   = 1;
 const auto idx_pre   = 2;
 const auto idx_note0 = 4;  ///< premier champ de note
 const bool g_anonyme = false;
+
+//-------------------------------------------------------------------
+enum SortCrit: char
+{
+	SC_none,  ///< pas de tri
+	SC_alpha, ///< par nom
+	SC_num,   ///< par numéro étudiant
+	SC_rank   ///< par rang (classement)
+};
+//-------------------------------------------------------------------
+/// Identifiant textuel du critere de tri, à lire dans le fichier de configuration \c .ini,
+/// dans la section \c [sorting], champ \c sortCrit
+std::map<std::string,SortCrit> g_sortCritStr = {
+	{ "none",  SC_none  },
+	{ "alpha", SC_alpha },
+	{ "idnum", SC_num,  },
+	{ "rank",  SC_rank  }
+};
+
+//-------------------------------------------------------------------
+/// Identifiant des champs à lire dans les fichiers CSV de notes
+enum ColIndex : char
+{
+	CI_numero,  ///< index colonne numéro étudiant
+	CI_nom,
+	CI_prenom,
+	CI_note1  ///< index colonne contenant la 1ere note
+};
+
+const char* getStr( ColIndex i )
+{
+	switch(i)
+	{
+		case CI_numero: return "numero"; break;
+		case CI_nom:    return "nom";    break;
+		case CI_prenom: return "prenom"; break;
+		case CI_note1:  return "note1";  break;
+	}
+	assert(0);
+	return "";
+}
+//-------------------------------------------------------------------
+/// Identifiant textuel des colonnes dans le fichier de configuration .ini, dans la section [columns]
+std::map<ColIndex,std::string> g_colIndexStr = {
+	{ CI_numero,  "numero" },
+	{ CI_nom,     "nom"    },
+	{ CI_prenom,  "prenom" },
+	{ CI_note1,   "note1"  }
+};
+
+
+//-------------------------------------------------------------------
+/// Parametres de fonctionnement
+struct Params
+{
+//	char delimiter_in = ';';
+//	char commentChar = '#';
+	std::map<ColIndex,int> colIndex;
+	SortCrit sortCriterion;
+private:
+	boost::property_tree::ptree _ptree;
+
+public:
+	/// Constructor, assigns default values
+	Params()
+	{
+		colIndex[CI_numero]   = 0;
+		colIndex[CI_nom]      = 1;
+		colIndex[CI_prenom]   = 2;
+		colIndex[CI_note1]    = 4;
+	}
+	
+	/// constructor, calls main constructor an tries to read .ini file
+	Params( std::string filename ): Params()
+	{
+		bool hasIniFile = true;
+		try
+		{
+			boost::property_tree::ini_parser::read_ini( filename, _ptree );
+		}
+		catch( const std::exception& e )
+		{
+			std::cerr << "No file " << filename << ", keeping defaults\n";
+			hasIniFile = false;
+		}
+		if( hasIniFile )
+		{
+			std::cout << "reading data in config file " << filename << '\n';
+			std::string sortCritName;
+			sortCritName = _ptree.get<std::string>( "sorting.sortCrit", sortCritName );
+			sortCriterion = g_sortCritStr[sortCritName];
+			
+/*			groupKey1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey1 );
+			groupKey2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey2 );
+
+			groupKey1_name = _ptree.get<std::string>( "grouping.groupKey1_name", groupKey1_name );
+			groupKey2_name = _ptree.get<std::string>( "grouping.groupKey2_name", groupKey2_name );
+
+			groupKey1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey1_pos );
+			groupKey2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey2_pos );
+
+			std::string pairs_1 = _ptree.get<std::string>( "grouping.groupKey1_pairs", std::string() );
+			std::string pairs_2 = _ptree.get<std::string>( "grouping.groupKey2_pairs", std::string() );
+
+			if( !pairs_1.empty() )
+				groupKey1_pairs = extractPairs( pairs_1 );
+			if( !pairs_2.empty() )
+				groupKey2_pairs = extractPairs( pairs_2 );
+*/
+			for( const auto& map_key: g_colIndexStr)
+				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
+		}
+	}
+
+	friend std::ostream& operator << ( std::ostream& f, const Params& p )
+	{
+		f << "Parametres:\n - index des colonnes:\n";
+		for (const auto& any : p.colIndex)
+		{	f << getStr(any.first) << ":" << any.second << '\n';
+		}
+		return f;
+	}
+};
 
 //--------------------------------------------------
 /// Split a line of CSV file into fields
@@ -151,15 +278,15 @@ struct Notes
 	std::vector<double> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
 	double _moy;   ///< moyenne générale
 
-	Notes( const std::vector<std::string>& line )
-		:_nom{line[idx_nom]}, _prenom{line[idx_pre]}, _id{line[idx_num]}
+	Notes( const std::vector<std::string>& line, const Params& p )
+		:_nom{line[idx_nom]}, _prenom{line[idx_pre]}, _id{line[p.colIndex.at(CI_numero)]}
 	{}
 };
 
 //--------------------------------------------------
 /// Renvoie une liste d'objets de type \c Notes
 auto
-readCSV_notes( std::string fname, const ListeModules& listeMod )
+readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& params )
 {
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
@@ -196,7 +323,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 
 			std::exit(5);
 		}
-		Notes notes( line );
+		Notes notes( line, params );
 		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
 		for( uint16_t j=idx_note0; j<line.size(); j++ )
 		{
@@ -221,8 +348,9 @@ readCSV_notes( std::string fname, const ListeModules& listeMod )
 /// Calcul des moyennes par UE, en fonction des coefficients de chaque module
 void
 compute(
-	const ListeModules& listeMod, ///< les modules pédagogiques
-	std::vector<Notes>& vnotes    ///< les notes, auxquelles on va ajouter les moy par UE
+	const ListeModules& listeMod,  ///< les modules pédagogiques
+	std::vector<Notes>& vnotes,    ///< les notes, auxquelles on va ajouter les moy par UE
+	const Params& par              ///< parametres
 )
 {
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
@@ -268,6 +396,28 @@ compute(
 		}
 		etud._moy = sum / nbUE;
 	}
+
+// TODO peut-être plus pertinent de faire une lambda par type de tri demandé ?
+	if( par.sortCriterion != SC_none )
+	{
+		std::cout << "sorting !\n";
+		std::sort(
+			vnotes.begin(),
+			vnotes.end(),
+			[&par]                               // lambda
+			(const Notes& n1, const Notes& n2)
+			{
+				switch( par.sortCriterion )
+				{
+					case SC_alpha: return n1._nom < n2._nom;
+					case SC_num:   return n1._id  < n2._id;
+					case SC_rank:  return n1._moy < n2._moy;
+					default: assert(0);
+				}
+			}
+		);
+	}
+	
 }
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
@@ -434,11 +584,21 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 	}
 	f << "\n";
 }
-//--------------------------------------------------
 
+
+//--------------------------------------------------
+/// main. Requires 2 args, plus one optional
+/**
+-1: fichier CSV contenant les coefficients
+-2: fichier CSV contenant les notes par module pédagogique, 1 ligne par étudiant
+-3: nom du fichier de sortie
+*/
 int
 main( int argc, const char* argv[] )
 {
+	Params params( "calculmoy.ini" ); // nom du fichier de configuration
+	std::cout << params;
+//	std::exit(0);
 	auto fout="out/moy_ue";
 	if( argc < 3 )
 	{
@@ -449,11 +609,13 @@ main( int argc, const char* argv[] )
 	{
 		fout = argv[3];
 	}
+	
+	
 	auto listeMod = readCSV_coeff( std::string(argv[1]) );
 	listeMod.print();
 //	printCoeffs( ue_coeffs.second.v_liste );
-	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod );
-	compute( listeMod, vnotes );
+	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod, params );
+	compute( listeMod, vnotes, params );
 
 
 	printMoyennesCsv( vnotes, listeMod, fout );
