@@ -25,6 +25,7 @@
 		<Unit filename="README.md" />
 		<Unit filename="buildrun.sh" />
 		<Unit filename="calculmoy.cpp" />
+		<Unit filename="calculmoy.ini" />
 		<Unit filename="coeffs.csv" />
 		<Unit filename="liste_notes.csv" />
 		<Extensions />

@@ -24,14 +24,6 @@ Champ fichier de notes:
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
-
-// constantes
-//const auto idx_num   = 0;
-const auto idx_nom   = 1;
-const auto idx_pre   = 2;
-const auto idx_note0 = 4;  ///< premier champ de note
-const bool g_anonyme = false;
-
 //-------------------------------------------------------------------
 enum SortCrit: char
 {
@@ -98,6 +90,19 @@ std::map<ColIndex,std::string> g_colIndexStr = {
 };
 
 
+//--------------------------------------------------
+/// from https://stackoverflow.com/questions/17223096/
+auto
+return_current_time_and_date()
+{
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%X");
+    return ss.str();
+}
+
 //-------------------------------------------------------------------
 /// Parametres de fonctionnement
 struct Params
@@ -105,9 +110,11 @@ struct Params
 //	char delimiter_in = ';';
 //	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
-	SortCrit sortCriterion;
-	bool timestamp = false;
-	
+	SortCrit    sortCriterion;
+	bool        timestamp = false;
+	std::string date;
+	bool anonyme = true;
+
 private:
 	boost::property_tree::ptree _ptree;
 
@@ -119,8 +126,9 @@ public:
 		colIndex[CI_nom]      = 1;
 		colIndex[CI_prenom]   = 2;
 		colIndex[CI_note1]    = 4;
+		date = return_current_time_and_date();
 	}
-	
+
 	/// constructor, calls main constructor an tries to read .ini file
 	Params( std::string filename ): Params()
 	{
@@ -140,16 +148,15 @@ public:
 			std::string sortCritName;
 			sortCritName = _ptree.get<std::string>( "sorting.sortCrit", sortCritName );
 			std::cerr << "sortCritName=" << sortCritName << '\n';
-			
-			sortCriterion = g_sortCritStr[sortCritName];
-			std::cerr << "sortCriterion=" << getStr( sortCriterion ) << '\n';
-			
+
 			auto f = g_sortCritStr.find(sortCritName);
 			if( f == g_sortCritStr.end() )
 				throw std::runtime_error( "Error, invalid item value " + sortCritName + " in .ini file" );
 			sortCriterion = g_sortCritStr[sortCritName];
-			std::exit(0);
-			
+
+			anonyme = _ptree.get<bool>( "misc.anonyme", anonyme );
+//			anonyme = (bool)_ptree.get<int>( "misc.anonyme", anonyme );
+
 /*			groupKey1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey1 );
 			groupKey2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey2 );
 
@@ -306,23 +313,23 @@ struct Notes
 	double _moy;   ///< moyenne générale
 
 	Notes( const std::vector<std::string>& line, const Params& p )
-		:_nom{line[idx_nom]}, _prenom{line[idx_pre]}, _id{line[p.colIndex.at(CI_numero)]}
+		:_nom{line[p.colIndex.at(CI_nom)]}, _prenom{line[p.colIndex.at(CI_prenom)]}, _id{line[p.colIndex.at(CI_numero)]}
 	{}
 };
 
 //--------------------------------------------------
 /// Renvoie une liste d'objets de type \c Notes
 auto
-readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& params )
+readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& par )
 {
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
-	assert( liste[0].size() > idx_note0 ); // la ligne doit contenir plus de 4 items (num, nom, plus les notes par module)
+	assert( liste[0].size() > par.colIndex.at(CI_note1) ); // la ligne doit contenir plus de 4 items (num, nom, plus les notes par module)
 
 // lecture des intitulés des modules
 	std::vector<std::string> v_mod;
-	for( uint16_t i=idx_note0; i<liste[0].size(); i++ )
+	for( uint16_t i=par.colIndex.at(CI_note1); i<liste[0].size(); i++ )
 	{
 		auto mod = liste[0].at(i);
 		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
@@ -341,20 +348,20 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 		auto line = liste[i];
 //		std::cout << "line size="<< line.size() << " coeffs.size()=" << coeffs.size() << "\n";
 
-		if( line.size() > coeffs.size() + idx_note0 )
+		if( line.size() > coeffs.size() + par.colIndex.at(CI_note1) )
 		{
-			std::cerr << "Erreur ligne " << i << ": " << line.size() - idx_note0 << " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
+			std::cerr << "Erreur ligne " << i << ": " << line.size() - par.colIndex.at(CI_note1) << " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
 			auto ii=0;
 			for( const auto& l: line )
 				std::cout << " -" << ii++ << ":'" << l << "' len=" << l.size() << '\n';
 
 			std::exit(5);
 		}
-		Notes notes( line, params );
+		Notes notes( line, par );
 		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
-		for( uint16_t j=idx_note0; j<line.size(); j++ )
+		for( uint16_t j=par.colIndex.at(CI_note1); j<line.size(); j++ )
 		{
-			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-idx_note0] << "\n";
+			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
 			auto value = 0.;
 			if( line[j] != "ABI" && line[j].size() != 0 )
 				value = std::stof( line[j] );
@@ -363,7 +370,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
 				std::exit(2);
 			}
-			notes._notes[ v_mod.at(j-idx_note0) ] = value;
+			notes._notes[ v_mod.at(j-par.colIndex.at(CI_note1)) ] = value;
 		}
 		v_notes.push_back( notes );
 	}
@@ -438,14 +445,14 @@ compute(
 				{
 					case SC_alpha: return n1._nom < n2._nom;
 					case SC_num:   return n1._id  < n2._id;
-					case SC_rankHL:  return n1._moy < n2._moy;
-					case SC_rankLH:  return n2._moy < n1._moy;
+					case SC_rankLH:  return n1._moy < n2._moy;
+					case SC_rankHL:  return n2._moy < n1._moy;
 					default: assert(0);
 				}
 			}
 		);
 	}
-	
+
 }
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
@@ -511,12 +518,12 @@ printCoeffs( const std::vector<Module>& coeffs )
 
 //--------------------------------------------------
 auto
-openfile( std::string name, std::string date, std::string ext )
+openfile( std::string name, const Params& par, std::string ext )
 {
 	std::ostringstream oss;
 	oss << name;
-	if( date.size() )
-		oss << "_" << date;
+	if( par.timestamp )
+		oss << "_" << par.date;
 	oss << "." << ext;
 	std::string fname = oss.str();
 	std::ofstream f(fname);
@@ -528,32 +535,17 @@ openfile( std::string name, std::string date, std::string ext )
 	std::cout << "fichier " << fname << " ouvert\n";
 	return f;
 }
-//--------------------------------------------------
-/// from https://stackoverflow.com/questions/17223096/
-auto
-return_current_time_and_date()
-{
-    auto now = std::chrono::system_clock::now();
-    auto in_time_t = std::chrono::system_clock::to_time_t(now);
-
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%X");
-    return ss.str();
-}
 
 //--------------------------------------------------
 void
-printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& p )
+printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
 {
 	auto tdo = "<td>";
 	auto tdc = "</td>";
-	std::string date;
-	if( p.timestamp )
-		date = return_current_time_and_date();
-	auto f = openfile( fout, date, "html" );
+	auto f = openfile( fout, par, "html" );
 
 	f << std::setprecision(4);
-	
+
 	f << "<!doctype html>\n<html><head>\n"
 		<< "<title>Moyennes par UE</title>\n"
 		<< "<meta charset='utf-8'>\n"
@@ -561,10 +553,10 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		<< "</head><body>\n";
 
 	f << "<h1>Moyennes par UE</h1>\n";
-		
+
 	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
-	if( !g_anonyme )
+	if( !par.anonyme )
 		f << "<th>Nom</th><th>Prenom</th>\n";
 	for( const auto& ue: listeMod.v_UE )
 		f << "<th>" << ue << "</th>\n";
@@ -576,34 +568,30 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 	for( const auto& etud: vnotes )
 	{
 		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
-		if( !g_anonyme )
+		if( !par.anonyme )
 			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
 
 		for( const auto& moy: etud._moyUE )
 			f << tdo << moy << tdc;
 		f << "<td class='bold'>" << etud._moy << tdc;
-		
+
 		f << "</tr>\n";
 	}
 	f << "\n";
 
-	f << "</table>\n"
-		<< "<p>" << date << "</p>\n";
+	f << "</table>\n<p>" << par.date << "</p>\n";
 	f << "</body></html>\n";
-	
+
 }
 //--------------------------------------------------
 void
-printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& p )
+printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
 {
-	std::string date;
-	if( p.timestamp )
-		date = return_current_time_and_date();
-	auto f = openfile( fout, date, "csv" );
+	auto f = openfile( fout, par, "csv" );
 
 	const char* sep = ";";
 	f << "Numéro";
-	if( !g_anonyme )
+	if( !par.anonyme )
 		f << sep << "Nom" << sep << "Prenom";
 	for( const auto& ue: listeMod.v_UE )
 		f << sep << ue;
@@ -612,7 +600,7 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 	for( const auto& etud: vnotes )
 	{
 		f << etud._id;
-		if( !g_anonyme )
+		if( !par.anonyme )
 			f << sep << etud._nom << sep << etud._prenom;
 		for( const auto& moy: etud._moyUE )
 			f << sep << moy;
@@ -628,6 +616,9 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 -1: fichier CSV contenant les coefficients
 -2: fichier CSV contenant les notes par module pédagogique, 1 ligne par étudiant
 -3: nom du fichier de sortie
+
+
+calculmoy [-t] [-a] coeffs.csv notes.csv [outfile]
 */
 int
 main( int argc, const char* argv[] )
@@ -654,8 +645,8 @@ main( int argc, const char* argv[] )
 				params.timestamp = true;
 		}
 	}
-	
-	
+
+
 	auto listeMod = readCSV_coeff( std::string(argv[1]) );
 	listeMod.print();
 //	printCoeffs( ue_coeffs.second.v_liste );
