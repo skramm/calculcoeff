@@ -35,11 +35,26 @@ const bool g_anonyme = false;
 //-------------------------------------------------------------------
 enum SortCrit: char
 {
-	SC_none,  ///< pas de tri
-	SC_alpha, ///< par nom
-	SC_num,   ///< par numéro étudiant
-	SC_rank   ///< par rang (classement)
+	SC_none,   ///< pas de tri
+	SC_alpha,  ///< par nom
+	SC_num,    ///< par numéro étudiant
+	SC_rankHL, ///< par rang (classement)
+	SC_rankLH  ///< par rang (classement)
 };
+
+const char* getStr( SortCrit i )
+{
+	switch(i)
+	{
+		case SC_none:   return "none";   break;
+		case SC_alpha:  return "alpha";  break;
+		case SC_num:    return "num";    break;
+		case SC_rankHL: return "rankHL"; break;
+		case SC_rankLH: return "rankLH"; break;
+	}
+	assert(0);
+	return ""; // to avoid a build warning
+}
 //-------------------------------------------------------------------
 /// Identifiant textuel du critere de tri, à lire dans le fichier de configuration \c .ini,
 /// dans la section \c [sorting], champ \c sortCrit
@@ -47,7 +62,8 @@ std::map<std::string,SortCrit> g_sortCritStr = {
 	{ "none",  SC_none  },
 	{ "alpha", SC_alpha },
 	{ "idnum", SC_num,  },
-	{ "rank",  SC_rank  }
+	{ "rankHL",  SC_rankHL  },
+	{ "rankLH",  SC_rankLH  }
 };
 
 //-------------------------------------------------------------------
@@ -70,7 +86,7 @@ const char* getStr( ColIndex i )
 		case CI_note1:  return "note1";  break;
 	}
 	assert(0);
-	return "";
+	return ""; // to avoid a build warning
 }
 //-------------------------------------------------------------------
 /// Identifiant textuel des colonnes dans le fichier de configuration .ini, dans la section [columns]
@@ -90,6 +106,8 @@ struct Params
 //	char commentChar = '#';
 	std::map<ColIndex,int> colIndex;
 	SortCrit sortCriterion;
+	bool timestamp = false;
+	
 private:
 	boost::property_tree::ptree _ptree;
 
@@ -121,7 +139,16 @@ public:
 			std::cout << "reading data in config file " << filename << '\n';
 			std::string sortCritName;
 			sortCritName = _ptree.get<std::string>( "sorting.sortCrit", sortCritName );
+			std::cerr << "sortCritName=" << sortCritName << '\n';
+			
 			sortCriterion = g_sortCritStr[sortCritName];
+			std::cerr << "sortCriterion=" << getStr( sortCriterion ) << '\n';
+			
+			auto f = g_sortCritStr.find(sortCritName);
+			if( f == g_sortCritStr.end() )
+				throw std::runtime_error( "Error, invalid item value " + sortCritName + " in .ini file" );
+			sortCriterion = g_sortCritStr[sortCritName];
+			std::exit(0);
 			
 /*			groupKey1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey1 );
 			groupKey2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey2 );
@@ -411,7 +438,8 @@ compute(
 				{
 					case SC_alpha: return n1._nom < n2._nom;
 					case SC_num:   return n1._id  < n2._id;
-					case SC_rank:  return n1._moy < n2._moy;
+					case SC_rankHL:  return n1._moy < n2._moy;
+					case SC_rankLH:  return n2._moy < n1._moy;
 					default: assert(0);
 				}
 			}
@@ -486,7 +514,10 @@ auto
 openfile( std::string name, std::string date, std::string ext )
 {
 	std::ostringstream oss;
-	oss << name << "_" << date << "." << ext;
+	oss << name;
+	if( date.size() )
+		oss << "_" << date;
+	oss << "." << ext;
 	std::string fname = oss.str();
 	std::ofstream f(fname);
 	if( !f.is_open() )
@@ -512,11 +543,13 @@ return_current_time_and_date()
 
 //--------------------------------------------------
 void
-printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
+printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& p )
 {
 	auto tdo = "<td>";
 	auto tdc = "</td>";
-	auto date = return_current_time_and_date();
+	std::string date;
+	if( p.timestamp )
+		date = return_current_time_and_date();
 	auto f = openfile( fout, date, "html" );
 
 	f << std::setprecision(4);
@@ -561,9 +594,12 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 }
 //--------------------------------------------------
 void
-printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout )
+printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& p )
 {
-	auto f = openfile( fout, return_current_time_and_date(), "csv" );
+	std::string date;
+	if( p.timestamp )
+		date = return_current_time_and_date();
+	auto f = openfile( fout, date, "csv" );
 
 	const char* sep = ";";
 	f << "Numéro";
@@ -609,6 +645,15 @@ main( int argc, const char* argv[] )
 	{
 		fout = argv[3];
 	}
+
+	if( argc > 1 )
+	{
+		for( int i=1; i<argc; i++ )
+		{
+			if( std::string(argv[i]) == "-t" )
+				params.timestamp = true;
+		}
+	}
 	
 	
 	auto listeMod = readCSV_coeff( std::string(argv[1]) );
@@ -618,8 +663,8 @@ main( int argc, const char* argv[] )
 	compute( listeMod, vnotes, params );
 
 
-	printMoyennesCsv( vnotes, listeMod, fout );
-	printMoyennesHtml( vnotes, listeMod, fout );
+	printMoyennesCsv(  vnotes, listeMod, fout, params );
+	printMoyennesHtml( vnotes, listeMod, fout, params );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
 
