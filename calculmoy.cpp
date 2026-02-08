@@ -19,6 +19,7 @@ Champ fichier de notes:
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
+#include <numeric>
 
 //#include <boost/format.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -155,25 +156,7 @@ public:
 			sortCriterion = g_sortCritStr[sortCritName];
 
 			anonyme = _ptree.get<bool>( "misc.anonyme", anonyme );
-//			anonyme = (bool)_ptree.get<int>( "misc.anonyme", anonyme );
 
-/*			groupKey1 = (bool)_ptree.get<int>( "grouping.groupKey1", groupKey1 );
-			groupKey2 = (bool)_ptree.get<int>( "grouping.groupKey2", groupKey2 );
-
-			groupKey1_name = _ptree.get<std::string>( "grouping.groupKey1_name", groupKey1_name );
-			groupKey2_name = _ptree.get<std::string>( "grouping.groupKey2_name", groupKey2_name );
-
-			groupKey1_pos = _ptree.get<int>( "grouping.groupKey1_pos", groupKey1_pos );
-			groupKey2_pos = _ptree.get<int>( "grouping.groupKey2_pos", groupKey2_pos );
-
-			std::string pairs_1 = _ptree.get<std::string>( "grouping.groupKey1_pairs", std::string() );
-			std::string pairs_2 = _ptree.get<std::string>( "grouping.groupKey2_pairs", std::string() );
-
-			if( !pairs_1.empty() )
-				groupKey1_pairs = extractPairs( pairs_1 );
-			if( !pairs_2.empty() )
-				groupKey2_pairs = extractPairs( pairs_2 );
-*/
 			for( const auto& map_key: g_colIndexStr)
 				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
 		}
@@ -267,23 +250,20 @@ struct Module
 //--------------------------------------------------
 struct ListeModules
 {
-	std::vector<Module> v_liste; ///< liste de modules pédagogiques
-	std::vector<uint32_t> v_totUE; ///< totaux par UE
-	std::vector<std::string> v_UE; ///< noms des UE
+	std::vector<Module>      v_liste;      ///< liste de modules pédagogiques
+	std::vector<uint32_t>    v_totCoeffUE; ///< totaux par UE
+	std::vector<std::string> v_UE;         ///< noms des UE
 
 /// Calcul totaux par UE
 	void calculTotaux()
 	{
 		assert( v_UE.size() ); // impossible de calculer les totaux par UE.. si on a pas d'UE!
-		v_totUE.resize( v_UE.size() );
-
-		for( auto& tot: v_totUE )
-			tot = 0; // on initialise tous les totaux a 0 (pour chaque UE)
+		v_totCoeffUE.resize( v_UE.size(), 0 );
 
 		for( uint16_t i=0; i<v_UE.size(); i++ )
 		{
 			for( const auto& mod: v_liste )
-				v_totUE[i] += mod._coeffue[i];
+				v_totCoeffUE[i] += mod._coeffue[i];
 		}
 	}
 	void print()
@@ -292,7 +272,7 @@ struct ListeModules
 		for( const auto& ue: v_UE )
 			std::cout << ue << " ";
 		std::cout << "\n-Totaux:\n";
-		for( const auto& tot: v_totUE )
+		for( const auto& tot: v_totCoeffUE )
 			std::cout << "  -" << tot << "\n";
 		std::cout << "-Modules:\n";
 		for( const auto& m: v_liste )
@@ -379,8 +359,20 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 }
 
 //--------------------------------------------------
+/// Results per UE
+struct Results
+{
+	std::vector<double>   _moyParUE;
+	std::vector<double>   _medParUE;
+	Results( size_t nb )
+	{
+		_moyParUE.resize(     nb, 0. );
+		_medParUE.resize(     nb, 0. );
+	}
+};
+//--------------------------------------------------
 /// Calcul des moyennes par UE, en fonction des coefficients de chaque module
-void
+auto // return object of type Results
 compute(
 	const ListeModules& listeMod,  ///< les modules pédagogiques
 	std::vector<Notes>& vnotes,    ///< les notes, auxquelles on va ajouter les moy par UE
@@ -392,6 +384,7 @@ compute(
 	auto nbUE = listeMod.v_UE.size();
 
 	const auto& v_listeMod = listeMod.v_liste;
+	std::vector<std::vector<double>> vec_values(nbUE);
 	for( auto& etud: vnotes )
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
@@ -401,7 +394,7 @@ compute(
 		{
 			auto ue = listeMod.v_UE[idxUE];
 			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
-			float sum_UE = 0.;
+			float sum_etud = 0.;
 			for( const auto& note: etud._notes ) // on itere sur chaque note
 			{
 				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
@@ -421,20 +414,47 @@ compute(
 				auto c = it->_coeffue;
 
 				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << "\n";
-				sum_UE += note.second * c.at(idxUE);
-				std::cout << "sum_UE=" << sum_UE << '\n';
+				auto value = note.second * c.at(idxUE);
+				sum_etud += value;
+				//std::cout << "sum_etud=" << sum_etud << '\n';
 			}
-			etud._moyUE[idxUE] = sum_UE / listeMod.v_totUE.at(idxUE);
+			etud._moyUE[idxUE] = sum_etud / listeMod.v_totCoeffUE.at(idxUE);
+			vec_values[idxUE].push_back( etud._moyUE[idxUE] );
+
 			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
 			sum += etud._moyUE[idxUE];
 		}
 		etud._moy = sum / nbUE;
 	}
 
+// calcul des résultats par UE
+
+	Results resultsPerUE(nbUE);
+	auto nbEtud = vnotes.size();
+	
+	for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
+	{
+// 1 - moyenne	
+		resultsPerUE._moyParUE[idxUE] = std::accumulate(vec_values[idxUE].begin(), vec_values[idxUE].end(), 0. );
+		resultsPerUE._moyParUE[idxUE] /= nbEtud;
+//		resultsPerUE._moyParUE[idxUE] /= listeMod.v_totCoeffUE[idxUE];
+		
+// 2 - mediane
+		std::sort( vec_values[idxUE].begin(), vec_values[idxUE].end() );
+//		auto idx_med = nbEtud/2;
+//		std::cout << "nbEtud= " << nbEtud << "\n";
+		if( nbEtud % 2 ) // impair
+			resultsPerUE._medParUE[idxUE] = vec_values[idxUE].at(nbEtud/2);
+		else             // pair
+			resultsPerUE._medParUE[idxUE] = (		
+				vec_values[idxUE].at(nbEtud/2) + vec_values[idxUE].at((nbEtud-1)/2)
+			) / 2.;
+	}
+	
 // TODO peut-être plus pertinent de faire une lambda par type de tri demandé ?
 	if( par.sortCriterion != SC_none )
 	{
-		std::cout << "sorting !\n";
+//		std::cout << "sorting !\n";
 		std::sort(
 			vnotes.begin(),
 			vnotes.end(),
@@ -453,6 +473,7 @@ compute(
 		);
 	}
 
+	return resultsPerUE;
 }
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
@@ -522,6 +543,11 @@ openfile( std::string name, const Params& par, std::string ext )
 {
 	std::ostringstream oss;
 	oss << name;
+	if( par.anonyme )
+		oss << "_anon";
+	else
+		oss << "_noms";
+	
 	if( par.timestamp )
 		oss << "_" << par.date;
 	oss << "." << ext;
@@ -538,7 +564,13 @@ openfile( std::string name, const Params& par, std::string ext )
 
 //--------------------------------------------------
 void
-printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
+printMoyennesHtml(
+	const std::vector<Notes>& vnotes,
+	const ListeModules&       listeMod,
+	std::string               fout,           ///< output file name
+	const Params&             par,
+	const Results&            res
+)
 {
 	auto tdo = "<td>";
 	auto tdc = "</td>";
@@ -560,7 +592,7 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		f << "<th>Nom</th><th>Prenom</th>\n";
 	for( const auto& ue: listeMod.v_UE )
 		f << "<th>" << ue << "</th>\n";
-	f << "<th>MOY</th>\n";
+	f << "<th>MOY  ETUDIANT</th>\n";
 	f << "</tr>\n";
 
 	auto nbUE = listeMod.v_UE.size();
@@ -574,12 +606,18 @@ printMoyennesHtml( const std::vector<Notes>& vnotes, const ListeModules& listeMo
 		for( const auto& moy: etud._moyUE )
 			f << tdo << moy << tdc;
 		f << "<td class='bold'>" << etud._moy << tdc;
-
 		f << "</tr>\n";
 	}
-	f << "\n";
 
-	f << "</table>\n<p>" << par.date << "</p>\n";
+// last line
+	f << "<tr><th></th><th>Moyenne<br>Mediane</th>";
+	if( !par.anonyme )
+		f << "<th></th><th></th>\n";
+
+	for( uint16_t i=0; i<nbUE; i++ )
+		f << "<th>" << res._moyParUE[i] << "<br>" << res._medParUE[i] << "</th>\n";
+	f << "<th></th>";
+	f << "</tr>\n</table>\n<p>" << par.date << "</p>\n";
 	f << "</body></html>\n";
 
 }
@@ -651,11 +689,14 @@ main( int argc, const char* argv[] )
 	listeMod.print();
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod, params );
-	compute( listeMod, vnotes, params );
+	auto results = compute( listeMod, vnotes, params );
 
-
+	params.anonyme = true;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
-	printMoyennesHtml( vnotes, listeMod, fout, params );
+	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	params.anonyme = false;
+	printMoyennesCsv(  vnotes, listeMod, fout, params );
+	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
 
