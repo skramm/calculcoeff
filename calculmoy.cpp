@@ -192,12 +192,18 @@ split_string( const std::string &s, char delim )
 
 //--------------------------------------------------
 /// read CSV file \c filename
+/**
+comment char: #
+*/
 std::vector<std::vector<std::string>>
 readCSV( std::string filename )
 {
 	std::ifstream file( filename );
 	if( !file.is_open() )
-		throw std::runtime_error( "Error, unable to open file " + filename );
+	{
+		std::cerr << "Erreur, fichier " << filename << " inaccessible\n";
+		std::exit(1);
+	}
 
 	std::vector<std::vector<std::string>> out;
 
@@ -206,8 +212,8 @@ readCSV( std::string filename )
 	while ( getline (file, buff ) )
 	{
 		line++;
-
 		auto v_str = split_string( buff, ';' );
+		
 //		std::cout << "line " << line << ": " << buff << " size=" << v_str.size() << '\n';
 
 		if( !v_str.empty() )
@@ -293,8 +299,15 @@ struct Notes
 	double _moy;   ///< moyenne générale
 
 	Notes( const std::vector<std::string>& line, const Params& p )
-		:_nom{line[p.colIndex.at(CI_nom)]}, _prenom{line[p.colIndex.at(CI_prenom)]}, _id{line[p.colIndex.at(CI_numero)]}
-	{}
+	{
+		auto s = line.size();
+		assert( s > p.colIndex.at(CI_nom)    );
+		assert( s > p.colIndex.at(CI_prenom) );
+		assert( s > p.colIndex.at(CI_numero) );
+		_nom    = line[p.colIndex.at(CI_nom)];
+		_prenom = line[p.colIndex.at(CI_prenom)];
+		_id     = line[p.colIndex.at(CI_numero)];
+	}
 };
 
 //--------------------------------------------------
@@ -305,7 +318,14 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
-	assert( liste[0].size() > par.colIndex.at(CI_note1) ); // la ligne doit contenir plus de 4 items (num, nom, plus les notes par module)
+
+	if( liste[0].size() <= par.colIndex.at(CI_note1) ) // la ligne doit contenir assez d'items (num, nom, plus les notes par module)
+	{
+		std::cerr << "Erreur, la ligne contient " << liste[0].size()
+			<< " champs, et la 1ere note est attendue à l'index "
+			<< par.colIndex.at(CI_note1) << '\n';
+		std::exit(1);
+	}
 
 // lecture des intitulés des modules
 	std::vector<std::string> v_mod;
@@ -325,12 +345,13 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 	std::vector<Notes> v_notes;
 	for( uint16_t i=1; i<liste.size(); i++ ) // on saute la 1ere ligne
 	{
-		auto line = liste[i];
+		auto line = liste.at(i);
 //		std::cout << "line size="<< line.size() << " coeffs.size()=" << coeffs.size() << "\n";
 
 		if( line.size() > coeffs.size() + par.colIndex.at(CI_note1) )
 		{
-			std::cerr << "Erreur ligne " << i << ": " << line.size() - par.colIndex.at(CI_note1) << " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
+			std::cerr << "Erreur ligne " << i << ": " << line.size() - par.colIndex.at(CI_note1)
+				<< " notes présentes, au lieu de " << coeffs.size() << " attendues\n";
 			auto ii=0;
 			for( const auto& l: line )
 				std::cout << " -" << ii++ << ":'" << l << "' len=" << l.size() << '\n';
@@ -341,7 +362,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
 		for( uint16_t j=par.colIndex.at(CI_note1); j<line.size(); j++ )
 		{
-			std::cout << "  j=" << j << " val=" << line[j]  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
+			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
 			auto value = 0.;
 			if( line[j] != "ABI" && line[j].size() != 0 )
 				value = std::stof( line[j] );
@@ -350,12 +371,14 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
 				std::exit(2);
 			}
-			notes._notes[ v_mod.at(j-par.colIndex.at(CI_note1)) ] = value;
+			std::cout << "position=" <<j-par.colIndex.at(CI_note1) << '\n';
+			std::cout << "v_mod.at()=" <<v_mod.at(j-par.colIndex.at(CI_note1)) << '\n';
+			notes._notes.at( v_mod.at(j-par.colIndex.at(CI_note1) ) ) = value;
 		}
 		v_notes.push_back( notes );
 	}
+	std::cout << "**fin lecture notes" << std::endl;
 	return v_notes;
-
 }
 
 //--------------------------------------------------
