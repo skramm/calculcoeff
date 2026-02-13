@@ -148,7 +148,7 @@ public:
 			std::cout << "reading data in config file " << filename << '\n';
 			std::string sortCritName;
 			sortCritName = _ptree.get<std::string>( "sorting.sortCrit", sortCritName );
-			std::cerr << "sortCritName=" << sortCritName << '\n';
+//			std::cerr << "sortCritName=" << sortCritName << '\n';
 
 			auto f = g_sortCritStr.find(sortCritName);
 			if( f == g_sortCritStr.end() )
@@ -332,7 +332,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 	for( uint16_t i=par.colIndex.at(CI_note1); i<liste[0].size(); i++ )
 	{
 		auto mod = liste[0].at(i);
-		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
+//		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
 		if( mod.size() )
 			v_mod.push_back( mod );
 
@@ -359,10 +359,10 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 			std::exit(5);
 		}
 		Notes notes( line, par );
-		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
+//		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
 		for( uint16_t j=par.colIndex.at(CI_note1); j<line.size(); j++ )
 		{
-			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
+//			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
 			auto value = 0.;
 			if( line[j] != "ABI" && line[j].size() != 0 )
 				value = std::stof( line[j] );
@@ -371,9 +371,7 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
 				std::exit(2);
 			}
-			std::cout << "position=" <<j-par.colIndex.at(CI_note1) << '\n';
-			std::cout << "v_mod.at()=" <<v_mod.at(j-par.colIndex.at(CI_note1)) << '\n';
-			notes._notes.at( v_mod.at(j-par.colIndex.at(CI_note1) ) ) = value;
+			notes._notes[( v_mod.at(j-par.colIndex.at(CI_note1) ) )] = value;	
 		}
 		v_notes.push_back( notes );
 	}
@@ -389,8 +387,8 @@ struct Results
 	std::vector<double>   _medParUE;
 	Results( size_t nb )
 	{
-		_moyParUE.resize(     nb, 0. );
-		_medParUE.resize(     nb, 0. );
+		_moyParUE.resize( nb, 0. );
+		_medParUE.resize( nb, 0. );
 	}
 };
 //--------------------------------------------------
@@ -399,7 +397,7 @@ auto // return object of type Results
 compute(
 	const ListeModules& listeMod,  ///< les modules pédagogiques
 	std::vector<Notes>& vnotes,    ///< les notes, auxquelles on va ajouter les moy par UE
-	const Params& par              ///< parametres
+	const Params&       par        ///< parametres
 )
 {
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
@@ -410,17 +408,17 @@ compute(
 	std::vector<std::vector<double>> vec_values(nbUE);
 	for( auto& etud: vnotes )
 	{
-		std::cout << "\n* etud=" << etud._nom << '\n';
+//		std::cout << "\n* etud=" << etud._nom << '\n';
 		etud._moyUE.resize( nbUE );
 		auto sum = 0.;
 		for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
 		{
 			auto ue = listeMod.v_UE[idxUE];
-			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
+//			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
 			float sum_etud = 0.;
 			for( const auto& note: etud._notes ) // on itere sur chaque note
 			{
-				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
+//				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
 				auto it = std::find_if(
 					v_listeMod.begin(),
 					v_listeMod.end(),
@@ -436,7 +434,7 @@ compute(
 
 				auto c = it->_coeffue;
 
-				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << "\n";
+//				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << "\n";
 				auto value = note.second * c.at(idxUE);
 				sum_etud += value;
 				//std::cout << "sum_etud=" << sum_etud << '\n';
@@ -444,7 +442,7 @@ compute(
 			etud._moyUE[idxUE] = sum_etud / listeMod.v_totCoeffUE.at(idxUE);
 			vec_values[idxUE].push_back( etud._moyUE[idxUE] );
 
-			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
+//			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
 			sum += etud._moyUE[idxUE];
 		}
 		etud._moy = sum / nbUE;
@@ -460,12 +458,9 @@ compute(
 // 1 - moyenne	
 		resultsPerUE._moyParUE[idxUE] = std::accumulate(vec_values[idxUE].begin(), vec_values[idxUE].end(), 0. );
 		resultsPerUE._moyParUE[idxUE] /= nbEtud;
-//		resultsPerUE._moyParUE[idxUE] /= listeMod.v_totCoeffUE[idxUE];
 		
 // 2 - mediane
 		std::sort( vec_values[idxUE].begin(), vec_values[idxUE].end() );
-//		auto idx_med = nbEtud/2;
-//		std::cout << "nbEtud= " << nbEtud << "\n";
 		if( nbEtud % 2 ) // impair
 			resultsPerUE._medParUE[idxUE] = vec_values[idxUE].at(nbEtud/2);
 		else             // pair
@@ -578,10 +573,10 @@ openfile( std::string name, const Params& par, std::string ext )
 	std::ofstream f(fname);
 	if( !f.is_open() )
 	{
-		std::cerr << "Erreur: impossible de créer fichier '" << fname << "'\n";
+		std::cerr << "Erreur: impossible de créer fichier '" << fname << '\n';
 		std::exit(4);
 	}
-	std::cout << "fichier " << fname << " ouvert\n";
+//	std::cout << "fichier " << fname << " ouvert\n";
 	return f;
 }
 
@@ -633,9 +628,10 @@ printMoyennesHtml(
 	}
 
 // last line
-	f << "<tr><th></th><th>Moyenne<br>Mediane</th>";
+	f << "<tr><th></th>";
 	if( !par.anonyme )
 		f << "<th></th><th></th>\n";
+	f << "<th>Moyenne<br>Mediane</th>";
 
 	for( uint16_t i=0; i<nbUE; i++ )
 		f << "<th>" << res._moyParUE[i] << "<br>" << res._medParUE[i] << "</th>\n";
