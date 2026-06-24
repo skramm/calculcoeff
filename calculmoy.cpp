@@ -31,7 +31,11 @@ Champ fichier de notes:
 		std::cerr << "assert failed, line=" << __LINE__ << ", value1=" << b << "; value2=" << c << std::endl; \
 		assert( a ); \
 	}
-		
+
+auto tdo = "<td>";
+auto tdc = "</td>";
+
+
 //-------------------------------------------------------------------
 enum SortCrit: char
 {
@@ -418,7 +422,6 @@ compute(
 	auto nbUE = listeMod.v_UE.size();
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << ", nb uE=" << nbUE << '\n';
 
-
 	const auto& v_listeMod = listeMod.v_liste;
 	std::vector<std::vector<double>> vec_values(nbUE);
 	for( auto& etud: vnotes )
@@ -449,12 +452,12 @@ compute(
 
 				auto c = it->_coeffue;
 
-//				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << "\n";
 				auto value = note.second * c.at(idxUE);
 				sum_etud += value;
-				//std::cout << "sum_etud=" << sum_etud << '\n';
+				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << ", val=" << value << ", sum=" << sum_etud << "\n";
 			}
 			etud._moyUE[idxUE] = sum_etud / listeMod.v_totCoeffUE.at(idxUE);
+			std::cout << "MOY=" << "sum=" << sum_etud << " / par " << listeMod.v_totCoeffUE.at(idxUE) << " res=" << etud._moyUE[idxUE]  << "\n";
 			vec_values[idxUE].push_back( etud._moyUE[idxUE] );
 
 //			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
@@ -508,6 +511,7 @@ compute(
 
 	return resultsPerUE;
 }
+
 //--------------------------------------------------
 /// Lecture des coefficients dans un CSV, pour chaque module et dans chaque UE
 /**
@@ -596,6 +600,71 @@ openfile( std::string name, const Params& par, std::string ext )
 }
 
 //--------------------------------------------------
+auto
+htmlHeader( std::string title )
+{
+	return std::string( 
+		"<!doctype html>\n<html><head>\n" \
+		"<title>" + title + "</title>\n" \
+		"<meta charset='utf-8'>\n" \
+		"<link rel='stylesheet' href='ue.css'>\n" \
+		"</head><body>\n");
+}
+//--------------------------------------------------
+void
+printNotesHtml(
+	const std::vector<Notes>& vnotes,
+	const ListeModules&       listeMod,     ///< noms des modules
+	std::string               fout,           ///< output file name
+	const Params&             par
+)
+{
+	auto f = openfile( fout, par, "html" );
+
+	f << std::setprecision(4);
+	f << htmlHeader( "Notes" );
+
+	f << "<h1>Notes</h1>\n";
+
+	f << "<table>\n"
+		<< "<tr><th></th><th>Numéro</th>";
+	if( !par.anonyme )
+		f << "<th>Nom</th><th>Prenom</th>\n";
+
+
+	auto firstetud = vnotes.at(0);
+	std::vector<std::string> vcol;
+	for( const auto p:  firstetud._notes )
+	{
+		vcol.push_back( p.first );
+		f << "<th>" << vcol.back() << "</th>";
+	}
+	f << "</tr>\n";
+
+	uint16_t i=0;
+	for( const auto& etud: vnotes )
+	{
+		std::cout << "NOM" << etud._nom << "\n";
+
+//		for( const auto p:  firstetud._notes )
+//			std::cout << p.first << "-" << p.second << "\n";
+		
+		
+		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
+		if( !par.anonyme )
+			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
+		uint16_t i=0;
+		for( const auto& code: vcol )
+		{
+		std::cout <<"code= " << code << "\n";
+			f << tdo << etud._notes.at( code ) << tdc;
+		}
+			
+		f << "</tr>\n";
+	}
+}
+
+//--------------------------------------------------
 void
 printMoyennesHtml(
 	const std::vector<Notes>& vnotes,
@@ -610,12 +679,7 @@ printMoyennesHtml(
 	auto f = openfile( fout, par, "html" );
 
 	f << std::setprecision(4);
-
-	f << "<!doctype html>\n<html><head>\n"
-		<< "<title>Moyennes par UE</title>\n"
-		<< "<meta charset='utf-8'>\n"
-		<< "<link rel='stylesheet' href='ue.css'>\n"
-		<< "</head><body>\n";
+	f << htmlHeader( "Moyennes par UE" );
 
 	f << "<h1>Moyennes par UE</h1>\n";
 
@@ -697,6 +761,8 @@ main( int argc, const char* argv[] )
 {
 	std::cout << argv[0] << " version " << VERSION << "\n";
 
+	std::setlocale(LC_ALL, "fr_FR.UTF-8");
+
 	Params params( "calculmoy.ini" ); // nom du fichier de configuration
 	std::cout << params;
 //	std::exit(0);
@@ -730,9 +796,12 @@ main( int argc, const char* argv[] )
 	params.anonyme = true;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	printNotesHtml( vnotes, listeMod, "out/notes", params );
+
 	params.anonyme = false;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	printNotesHtml( vnotes, listeMod, "out/notes", params );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
 
