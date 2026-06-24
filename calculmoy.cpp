@@ -242,7 +242,8 @@ struct Module
 	int              _semestre;
 	std::string      _code;
 	std::vector<int> _coeffue; ///< coeff pour chaque UE, identifiée par son index
-
+//	std::map<std::string,int16_t> _coeffue; ///< coeff pour chaque UE, identifiée par son nom
+	
 	Module( const std::vector<std::string>& vec )
 	{
 		assert( vec.size()>3 );
@@ -255,10 +256,11 @@ struct Module
 		std::cout << "Module: sem=" << _semestre << " code=" << _code << '\n';
 		uint32_t sum_coeff = 0;
 		int i=0;
-		for( const auto& c: _coeffue )
+		for( const auto& p: _coeffue )
 		{
-			std::cout << " -" << i++ << ":" << c << "\n";
-			sum_coeff += c;
+//			std::cout << " -" << i++ << p.first << ":" << p.second << "\n";
+//			sum_coeff += p.second;
+			sum_coeff += p;
 		}
 		std::cout << "Total coeff de "<< _code << "=" << sum_coeff << '\n';
 	}
@@ -268,19 +270,32 @@ struct Module
 struct ListeModules
 {
 	std::vector<Module>      v_liste;      ///< liste de modules pédagogiques
-	std::vector<uint32_t>    v_totCoeffUE; ///< totaux par UE
+//	std::vector<uint32_t>    v_totCoeffUE; ///< totaux par UE
+	std::vector<std::vector<uint32_t>>    v_totCoeffUE; ///< totaux par UE, par semestre
 	std::vector<std::string> v_UE;         ///< noms des UE
 
-/// Calcul totaux par UE
+/// Calcul totaux par UE, par semestre
 	void calculTotaux()
 	{
-		assert( v_UE.size() ); // impossible de calculer les totaux par UE.. si on a pas d'UE!
-		v_totCoeffUE.resize( v_UE.size(), 0 );
+// 1- comptage semestres
+		std::map<int,bool> msem;
+		for( const auto& mod: v_liste )
+			msem[mod._semestre] = true;
+		auto nbsem = msem.size();
+		auto nbUE = v_UE.size();
+		std::cout << "NB SEMESTRES=" << nbsem << " NB UE=" << nbUE << "\n";
 
-		for( uint16_t i=0; i<v_UE.size(); i++ )
+		assert( nbUE ); // impossible de calculer les totaux par UE.. si on a pas d'UE!
+		v_totCoeffUE.resize( nbsem );
+
+		for( const auto& mod: v_liste )
 		{
-			for( const auto& mod: v_liste )
-				v_totCoeffUE[i] += mod._coeffue[i];
+			auto sem = mod._semestre;
+			v_totCoeffUE[sem].resize( nbUE, 0 );
+			for( uint16_t i=0; i<v_UE.size(); i++ )
+			{
+				v_totCoeffUE[sem].at(i) += mod._coeffue[i];
+			}
 		}
 	}
 	void print()
@@ -289,8 +304,8 @@ struct ListeModules
 		for( const auto& ue: v_UE )
 			std::cout << ue << " ";
 		std::cout << "\n-Totaux:\n";
-		for( const auto& tot: v_totCoeffUE )
-			std::cout << "  -" << tot << "\n";
+//		for( const auto& tot: v_totCoeffUE )
+//			std::cout << "  -" << tot << "\n";
 		std::cout << "-Modules:\n";
 		for( const auto& m: v_liste )
 			m.print();
@@ -544,7 +559,7 @@ readCSV_coeff( std::string fname )
 //		std::cout << __FUNCTION__ << "(): i=" << i<< " code=" << m._code << "\n";
 
 // vérification que chaque ligne a bien le bon nbe de valeurs
-		std::cout << "liste size="<< liste[i].size() << "\n";
+//		std::cout << "liste size="<< liste[i].size() << "\n";
 		assert( liste[i].size() == nb_UE + 3 );
 
 		for( uint16_t j=3; j<liste[i].size(); j++ )
@@ -610,6 +625,37 @@ htmlHeader( std::string title )
 		"<link rel='stylesheet' href='ue.css'>\n" \
 		"</head><body>\n");
 }
+
+//--------------------------------------------------
+/// WIP !!!
+void
+printCoeffsHtml(
+	const std::vector<Module>& coeffs,
+	std::string                fout,      ///< output file name
+	const Params&              par
+)
+{
+	auto f = openfile( fout, par, "html" );
+
+	f << std::setprecision(4);
+	f << htmlHeader( "Coefficients" );
+
+	f << "<h1>Coefficients</h1>\n";
+
+// comptage des semestres
+	for( const auto& mod: coeffs )
+	{
+	}
+
+	for( const auto& mod: coeffs )
+	{
+		std::cout << "code=" << mod._code << " sem=" << mod._semestre << "\n";
+		int i=0;
+		for( const auto& m: mod._coeffue )
+			std::cout << "  -"<< i++ << ":" << m << "\n";
+	}
+}
+
 //--------------------------------------------------
 void
 printNotesHtml(
@@ -717,8 +763,8 @@ printMoyennesHtml(
 	f << "<th></th>";
 	f << "</tr>\n</table>\n<p>" << par.date << "</p>\n";
 	f << "</body></html>\n";
-
 }
+
 //--------------------------------------------------
 void
 printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
