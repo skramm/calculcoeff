@@ -25,6 +25,13 @@ Champ fichier de notes:
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
+#define VERSION 20260624
+#define ASSERT2( a, b, c ) \
+	if( !(a) ) { \
+		std::cerr << "assert failed, line=" << __LINE__ << ", value1=" << b << "; value2=" << c << std::endl; \
+		assert( a ); \
+	}
+		
 //-------------------------------------------------------------------
 enum SortCrit: char
 {
@@ -114,7 +121,7 @@ struct Params
 	SortCrit    sortCriterion;
 	bool        timestamp = false;
 	std::string date;
-	bool anonyme = true;
+	bool        anonyme = true;
 
 private:
 	boost::property_tree::ptree _ptree;
@@ -298,6 +305,8 @@ struct Notes
 	std::vector<double> _moyUE;   ///< moyenne pour chaque UE (résultat du calcul)
 	double _moy;   ///< moyenne générale
 
+	bool isABI = false;
+
 	Notes( const std::vector<std::string>& line, const Params& p )
 	{
 		auto s = line.size();
@@ -313,12 +322,16 @@ struct Notes
 //--------------------------------------------------
 /// Renvoie une liste d'objets de type \c Notes
 auto
-readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& par )
+readCSV_notes(
+	std::string         fname,     ///< Nom fichier contenant les notes
+	const ListeModules& listeMod,  ///< 
+	const Params&       par        ///< paramètres
+)
 {
 	const auto& coeffs = listeMod.v_liste;
 	auto liste = readCSV( fname );
 	assert( liste.size() > 2 );
-
+	std::cout << "lecture de " << liste.size() << " lignes\n";
 	if( liste[0].size() <= par.colIndex.at(CI_note1) ) // la ligne doit contenir assez d'items (num, nom, plus les notes par module)
 	{
 		std::cerr << "Erreur, la ligne contient " << liste[0].size()
@@ -331,8 +344,10 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 	std::vector<std::string> v_mod;
 	for( uint16_t i=par.colIndex.at(CI_note1); i<liste[0].size(); i++ )
 	{
-		auto mod = liste[0].at(i);
-//		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << '\n';
+		ASSERT2( i<liste.at(0).size(), liste.at(0).size(), i );
+		assert( i<liste.at(0).size() );
+		auto mod = liste.at(0).at(i);
+		std::cout << __FUNCTION__ << "() i=" << i << " mod=" << mod << std::endl;
 		if( mod.size() )
 			v_mod.push_back( mod );
 
@@ -359,10 +374,10 @@ readCSV_notes( std::string fname, const ListeModules& listeMod, const Params& pa
 			std::exit(5);
 		}
 		Notes notes( line, par );
-//		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
+		std::cout << __FUNCTION__ << "() i=" << i << " nom=" << notes._nom << "\n";
 		for( uint16_t j=par.colIndex.at(CI_note1); j<line.size(); j++ )
 		{
-//			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
+			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
 			auto value = 0.;
 			if( line[j] != "ABI" && line[j].size() != 0 )
 				value = std::stof( line[j] );
@@ -400,25 +415,25 @@ compute(
 	const Params&       par        ///< parametres
 )
 {
-	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << '\n';
-
 	auto nbUE = listeMod.v_UE.size();
+	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << ", nb uE=" << nbUE << '\n';
+
 
 	const auto& v_listeMod = listeMod.v_liste;
 	std::vector<std::vector<double>> vec_values(nbUE);
 	for( auto& etud: vnotes )
 	{
-//		std::cout << "\n* etud=" << etud._nom << '\n';
+		std::cout << "\n* etud=" << etud._nom << '\n';
 		etud._moyUE.resize( nbUE );
 		auto sum = 0.;
 		for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
 		{
 			auto ue = listeMod.v_UE[idxUE];
-//			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
+			std::cout << "\n  * UE=" << ue << " idx=" << idxUE << "\n";
 			float sum_etud = 0.;
 			for( const auto& note: etud._notes ) // on itere sur chaque note
 			{
-//				std::cout << "ajout note:" << note.second << " module=" << note.first << "\n";
+				std::cout << "ajout note:" << note.second << ", module='" << note.first << "'\n";
 				auto it = std::find_if(
 					v_listeMod.begin(),
 					v_listeMod.end(),
@@ -428,7 +443,7 @@ compute(
 				);
 				if( it == v_listeMod.end() )
 				{
-					std::cerr << "Erreur, impossible de trouver le module '" << note.first << "' dans les coeffs\n";
+					std::cerr << "**Erreur, impossible de trouver le module '" << note.first << "' dans les coeffs\n";
 					std::exit(3);
 				}
 
@@ -680,6 +695,8 @@ calculmoy [-t] [-a] coeffs.csv notes.csv [outfile]
 int
 main( int argc, const char* argv[] )
 {
+	std::cout << argv[0] << " version " << VERSION << "\n";
+
 	Params params( "calculmoy.ini" ); // nom du fichier de configuration
 	std::cout << params;
 //	std::exit(0);
