@@ -1,0 +1,99 @@
+Sem;code;Intitulé;UE 1;UE 2;UE 3;UE 4;UE 5
+1;R101;Initiation aux réseaux informatiques;10;4;4;;
+1;R102;Principes et architecture des réseaux;10;;;;
+1;R103;Réseaux locaux et équipements actifs;7;2;2;;
+1;R104;Fondamentaux des systèmes électroniques;7;8;;;
+1;R105;Supports de transmission pour les réseaux;;6;;;
+1;R106;Architecture des systèmes numériques et informatiques;5;;5;;
+1;R107;Fondamentaux de la programmation;;;15;;
+1;R108;Bases des systèmes d'exploitation;6;;6;;
+1;R109;Introduction aux technologies web;;;4;;
+1;R110;Anglais technique 1;5;5;5;;
+1;R111;Communication;4;5;5;;
+1;R112;Projet personnel et professionnel;2;2;2;;
+1;R113;Mathématiques du signal;5;9;;;
+1;R114;Mathématiques des transmissions;5;9;;;
+1;R115;Gestion de projet;;3;3;;
+1;SAE11;Hygiène informatique et cybersécurité;20;;;;
+1;SAE12;Initiation aux réseaux informatiques;20;;;;
+1;SAE13;Découvrir un dispositif de transmission;;29;;;
+1;SAE14;Se présenter sur Internet;;;20;;
+1;SAE15;Traiter des données;;;20;;
+1;SAE16;Portfolio;7;7;7;;
+2;R201;Technologies de l'Internet;13;5;5;;
+2;R202;Admin système et fondamentaux de la virtualisation;9;;4;;
+2;R203;Bases des services réseaux;11;;;;
+2;R204;Initiation à la téléphonie d'entreprise;7;3;4;;
+2;R205;Signaux et systèmes pour les transmissions;5;9;;;
+2;R206;Numérisation de l'information;3;7;;;
+2;R207;Sources de données;1;;7;;
+2;R208;Analyse et traitement de données structurées;;;7;;
+2;R209;Initiation au développement web;3;;8;;
+2;R210;Anglais technique 2;10;4;4;;
+2;R211;Communication;5;4;4;;
+2;R212;Projet Personnel et Professionnel;2;2;4;;
+2;R213;Mathématiques des systèmes numériques;2;4;6;;
+2;R214;Analyse mathématique des signaux;2;8;;;
+2;SAE21;Construire un réseau pour une TPE;24;;;;
+2;SAE22;Mesurer et caractériser un signal ou un système;;20;;;
+2;SAE23;Mettre en place une solution info d'entreprise;;;20;;
+2;SAE24;Projet intégratif;19;13;14;;
+2;SAE25;Portfolio;7;5;6;;
+3;R301;Réseaux de campus;8;4;;;
+3;R302;Réseaux opérateurs;5;6;;;
+3;R303;Services réseaux avancés;8;;;;
+3;R304;Services d'annuaires;4;;;;
+3;R305;Chaînes de transmissions numériques;;17;;;
+3;R306;Fibres optiques et propagation;;9;;;
+3;R307;Réseaux d'accès;;9;;;
+3;R308;Consolidation de la programmation;;;10;;
+3;R309;Programmation événementielle;;;6;;
+3;R310;Gestion d'un système de bases de données;;2;2;;
+3;R311;Anglais professionnel 1;4;3;3;;
+3;R312;Communication;4;4;3;;
+3;R313;Projet Personnel et Professionnel;2;1;1;;
+3;R314;Analyse de Fourier;;10;;;
+3;R315;Gestion de projet 2;2;2;1;;
+3;R316;Ecosystème Cloud;;;;7;
+3;R317;Virtualisation avancée;;;;22;
+3;SAE31;Mettre en œuvre un système de transmission;;25;;;
+3;SAE32;Développer des applications communicantes;4;9;14;;
+3;SAE33;Concevoir un réseau multisites et services vir;17;7;;12;11
+3;SAE34;Mettre en place une infrastructure virtualisée;;;;18;6
+3;SAE35;Portfolio;5;5;4;2;2
+4;R401;Infrastructures de sécurité;8;7;;;
+4;R402;Transmissions avancées;;11;;;
+4;R403;Physique des Télécoms;;12;;;
+4;R404;Réseaux cellulaires;;13;;;
+4;R405;Automatisation des tâches d'administration;;;14;;
+4;R406;Anglais professionnel 2;4;2;2;;
+4;R407;Communication;4;3;3;;
+4;R408;Projet Personnel et Professionnel;2;1;1;;
+4;R409;Fondamentaux de la conteneurisation;;;;9;3
+4;R410;Développement de microservices;;;;;18
+4;SAE41;Développer-Déployer un microservice env. virtualisé;;;;30;31
+4;SAE42;Portfolio;2;7;4;4;4
+4;SAE43;Stage;25;27;25;12;12
+5;R501;Wi-Fi avancé;5;9;;;
+5;R502;Supervision des réseaux;5;;10;;
+5;R503;Ingénierie de systèmes télécoms;8;7;;;
+5;R504;Cycle de vie d'un projet informatique;3;;3;;
+5;R505;Anglais : insertion professionnelle 1;5;2;5;;
+5;R506;Communication;8;2;8;;
+5;R507;Projet Personnel et Professionnel;2;2;2;;
+5;R508;Gestion de projet 3;5;2;2;;
+5;R509;Outils et méthodes du DevOps;;;;;18
+5;R510;Infrastructures conteneurisées;;;;18;
+5;R511;Programmer son infrastructure;;;;14;5
+5;R512;Solutions Cloud;;;;17;
+5;SAE51;Concevoir réaliser présenter une solution technique;18;15;17;;
+5;SAE52;Piloter un projet informatique;6;1;8;;
+5;SAE53;Orchestrer la conteneurisation d'une application;;;;30;18
+5;SAE54;Portfolio;4;4;4;4;4
+6;R601;Anglais : insertion professionnelle 2;6;6;6;;
+6;R602;Communication;8;8;8;;
+6;R603;Connaissance de l'entreprise;6;6;6;;
+6;R604;Pilotage de solutions cloud pour l'entreprise;;;;60;
+6;SAE61;Gérer le pipeline d'une application orientée cloud;;;;26;34
+6;SAE62;Portfolio;4;4;4;4;4
+6;SAE63;Stage;20;20;20;20;20
