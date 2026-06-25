@@ -381,7 +381,7 @@ readCSV_notes(
 // vérification que les modules existent
 //		auto f = std::find( coeffs
 	}
-	std::cout << "Fichier de notes: " << v_mod.size() << " modules en 1ere ligne\n";
+	std::cout << "Fichier de notes: " << v_mod.size() << " modules en 1ere ligne\n" << std::endl;
 
 // lecture des notes
 	std::vector<Notes> v_notes;
@@ -406,8 +406,14 @@ readCSV_notes(
 		{
 			std::cout << "  j=" << j << " val=" << line.at(j)  << " mod=" << v_mod[j-par.colIndex.at(CI_note1)] << "\n";
 			auto value = 0.;
-			if( line[j] != "ABI" && line[j].size() != 0 )
+			if( line[j] != "ABI" && line[j] != "#VALUE!"  && line[j].size() != 0 )
+			try {
 				value = std::stof( line[j] );
+			}
+			catch( const std::exception& e )
+			{
+				std::cerr << "Error, invalid string:" << line[j] << "\n" << e.what() << "\n";
+			}
 			if( value < 0. || value > 20. )
 			{
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
@@ -511,7 +517,7 @@ compute(
 				vec_values[idxUE].at(nbEtud/2) + vec_values[idxUE].at((nbEtud-1)/2)
 			) / 2.;
 	}
-
+#if 0
 // TODO peut-être plus pertinent de faire une lambda par type de tri demandé ?
 	if( par.sortCriterion != SC_none )
 	{
@@ -533,6 +539,7 @@ compute(
 			}
 		);
 	}
+#endif
 
 	return resultsPerUE;
 }
@@ -612,6 +619,8 @@ openfile( std::string name, const Params& par, std::string ext )
 
 	if( par.timestamp )
 		oss << "_" << par.date;
+	oss << "_" << getStr( par.sortCriterion );
+
 	oss << "." << ext;
 	std::string fname = oss.str();
 	std::ofstream f(fname);
@@ -723,10 +732,10 @@ printNotesHtml(
 //--------------------------------------------------
 void
 printMoyennesHtml(
-	const std::vector<Notes>& vnotes,
+	std::vector<Notes>&       vnotes,   ///< grades for each student. Not const because it gets sorted here
 	const ListeModules&       listeMod,
 	std::string               fout,           ///< output file name
-	std::string               title,          ///< html title
+//	std::string               title,          ///< html title
 	const Params&             par,
 	const Results&            res
 )
@@ -738,7 +747,18 @@ printMoyennesHtml(
 	f << std::setprecision(4);
 	f << htmlHeader( "Moyennes par UE" );
 
-	f << "<h1>" << title << "</h1>\n";
+	std::ostringstream oss;
+	oss << fout;
+	if( par.anonyme )
+		oss << "_anon";
+	else
+		oss << "_noms";
+
+	if( par.timestamp )
+		oss << "_" << par.date;
+	oss << "_" << getStr( par.sortCriterion );
+
+	f << "<h1>" << oss.str() << "</h1>\n";
 
 	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
@@ -748,6 +768,29 @@ printMoyennesHtml(
 		f << "<th>" << ue << "</th>\n";
 	f << "<th>MOY  ETUDIANT</th>\n";
 	f << "</tr>\n";
+
+
+	if( par.sortCriterion != SC_none )
+	{
+//		std::cout << "sorting !\n";
+		std::sort(
+			vnotes.begin(),
+			vnotes.end(),
+			[&par]                               // lambda
+			(const Notes& n1, const Notes& n2)
+			{
+				switch( par.sortCriterion )
+				{
+					case SC_alpha: return n1._nom < n2._nom;
+					case SC_num:   return n1._id  < n2._id;
+					case SC_rankLH:  return n1._moy < n2._moy;
+					case SC_rankHL:  return n2._moy < n1._moy;
+					default: assert(0);
+				}
+			}
+		);
+	}
+
 
 	auto nbUE = listeMod.v_UE.size();
 	uint16_t i=0;
@@ -820,13 +863,20 @@ main( int argc, const char* argv[] )
 
 	if( argc < 3 )
 	{
-		std::cerr << "usage calculmoy coeff_file.csv notes.csv [outputfile]\n";
+		std::cerr << "usage calculmoy coeff_file.csv notes.csv [params.ini]\n";
 		return 1;
 	}
 
 	std::setlocale(LC_ALL, "fr_FR.UTF-8");
 
-	Params params( "calculmoy.ini" ); // nom du fichier de configuration
+	auto fpar = "calculmoy.ini"; // nom du fichier de configuration
+	if( argc > 3 )
+	{
+		fpar = argv[3];
+	}
+	Params params( fpar ); // chargement config
+
+
 	std::cout << params;
 //	std::exit(0);
 	auto fout=std::string("out/moy_ue_S");
@@ -834,11 +884,6 @@ main( int argc, const char* argv[] )
 	oss << fout << params.psemestre;
 	fout = oss.str();
 	std::cout <<"fout="<<fout << "\n";
-
-	if( argc > 3 )
-	{
-		fout = argv[3];
-	}
 
 	if( argc > 1 )
 	{
@@ -855,16 +900,21 @@ main( int argc, const char* argv[] )
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod, params );
 	auto results = compute( listeMod, vnotes, params );
-
+#if 0
 	params.anonyme = true;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
-	printMoyennesHtml( vnotes, listeMod, fout, "Moy/UE", params, results );
+	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
+#endif
 
 	params.anonyme = false;
-	printMoyennesCsv(  vnotes, listeMod, fout, params );
-	printMoyennesHtml( vnotes, listeMod, fout, "Moy/UE", params, results );
+	params.sortCriterion = SC_rankHL;
+//	printMoyennesCsv(  vnotes, listeMod, fout, params );
+	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
+
+	params.sortCriterion = SC_alpha;
+	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 }
 
