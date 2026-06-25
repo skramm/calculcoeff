@@ -25,6 +25,9 @@ Champ fichier de notes:
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
+/// Maximum du nbe de semestres gérables
+#define MAX_SEMESTRE 6
+
 #define VERSION 20260624
 #define ASSERT2( a, b, c ) \
 	if( !(a) ) { \
@@ -126,6 +129,7 @@ struct Params
 	bool        timestamp = false;
 	std::string date;
 	bool        anonyme = true;
+	int         psemestre = 1;
 
 private:
 	boost::property_tree::ptree _ptree;
@@ -161,6 +165,9 @@ public:
 			sortCritName = _ptree.get<std::string>( "sorting.sortCrit", sortCritName );
 //			std::cerr << "sortCritName=" << sortCritName << '\n';
 
+			psemestre = _ptree.get<int>( "misc.semestre", psemestre );
+			assert( psemestre > 0 && psemestre <= MAX_SEMESTRE );
+
 			auto f = g_sortCritStr.find(sortCritName);
 			if( f == g_sortCritStr.end() )
 				throw std::runtime_error( "Error, invalid item value " + sortCritName + " in .ini file" );
@@ -170,6 +177,7 @@ public:
 
 			for( const auto& map_key: g_colIndexStr)
 				colIndex[map_key.first] = _ptree.get<int>( "columns." + map_key.second, colIndex[map_key.first] );
+
 		}
 	}
 
@@ -224,7 +232,7 @@ readCSV( std::string filename )
 	{
 		line++;
 		auto v_str = split_string( buff, ';' );
-		
+
 //		std::cout << "line " << line << ": " << buff << " size=" << v_str.size() << '\n';
 
 		if( !v_str.empty() )
@@ -239,11 +247,11 @@ readCSV( std::string filename )
 /// Module pédagogique
 struct Module
 {
-	int              _semestre;
+	int              _semestre; ///< semestre, en clair (commence à 1)
 	std::string      _code;
 	std::vector<int> _coeffue; ///< coeff pour chaque UE, identifiée par son index
 //	std::map<std::string,int16_t> _coeffue; ///< coeff pour chaque UE, identifiée par son nom
-	
+
 	Module( const std::vector<std::string>& vec )
 	{
 		assert( vec.size()>3 );
@@ -271,7 +279,7 @@ struct ListeModules
 {
 	std::vector<Module>      v_liste;      ///< liste de modules pédagogiques
 //	std::vector<uint32_t>    v_totCoeffUE; ///< totaux par UE
-	std::vector<std::vector<uint32_t>>    v_totCoeffUE; ///< totaux par UE, par semestre
+	std::vector<std::vector<uint32_t>>    v_totCoeffUE; ///< totaux par UE, par semestre (vtor[4][2] correspond au semestre 5, 3ème UE)
 	std::vector<std::string> v_UE;         ///< noms des UE
 
 /// Calcul totaux par UE, par semestre
@@ -280,7 +288,7 @@ struct ListeModules
 // 1- comptage semestres
 		std::map<int,bool> msem;
 		for( const auto& mod: v_liste )
-			msem[mod._semestre] = true;
+			msem[mod._semestre-1] = true;
 		auto nbsem = msem.size();
 		auto nbUE = v_UE.size();
 		std::cout << "NB SEMESTRES=" << nbsem << " NB UE=" << nbUE << "\n";
@@ -290,7 +298,7 @@ struct ListeModules
 
 		for( const auto& mod: v_liste )
 		{
-			auto sem = mod._semestre;
+			auto sem = mod._semestre-1;
 			v_totCoeffUE[sem].resize( nbUE, 0 );
 			for( uint16_t i=0; i<v_UE.size(); i++ )
 			{
@@ -343,7 +351,7 @@ struct Notes
 auto
 readCSV_notes(
 	std::string         fname,     ///< Nom fichier contenant les notes
-	const ListeModules& listeMod,  ///< 
+	const ListeModules& listeMod,  ///<
 	const Params&       par        ///< paramètres
 )
 {
@@ -405,7 +413,7 @@ readCSV_notes(
 				std::cerr << "Erreur, valeur note invalide: " << value << "\n";
 				std::exit(2);
 			}
-			notes._notes[( v_mod.at(j-par.colIndex.at(CI_note1) ) )] = value;	
+			notes._notes[( v_mod.at(j-par.colIndex.at(CI_note1) ) )] = value;
 		}
 		v_notes.push_back( notes );
 	}
@@ -439,6 +447,8 @@ compute(
 
 	const auto& v_listeMod = listeMod.v_liste;
 	std::vector<std::vector<double>> vec_values(nbUE);
+	const auto& totCoeffUE = listeMod.v_totCoeffUE.at(par.psemestre - 1);
+
 	for( auto& etud: vnotes )
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
@@ -469,10 +479,10 @@ compute(
 
 				auto value = note.second * c.at(idxUE);
 				sum_etud += value;
-				std::cout << "mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << ", val=" << value << ", sum=" << sum_etud << "\n";
+				std::cout << "  -mod=" << it->_code << ", coef pour " << ue << "=" << c.at(idxUE) << ", val=" << value << ", sum=" << sum_etud << "\n";
 			}
-			etud._moyUE[idxUE] = sum_etud / listeMod.v_totCoeffUE.at(idxUE);
-			std::cout << "MOY=" << "sum=" << sum_etud << " / par " << listeMod.v_totCoeffUE.at(idxUE) << " res=" << etud._moyUE[idxUE]  << "\n";
+			etud._moyUE[idxUE] = sum_etud / totCoeffUE.at(idxUE);
+			std::cout << "MOY=" << "sum=" << sum_etud << " / par " << totCoeffUE.at(idxUE) << " res=" << etud._moyUE[idxUE]  << "\n";
 			vec_values[idxUE].push_back( etud._moyUE[idxUE] );
 
 //			std::cout << "moy=" << etud._moyUE[idxUE] << '\n';
@@ -485,23 +495,23 @@ compute(
 
 	Results resultsPerUE(nbUE);
 	auto nbEtud = vnotes.size();
-	
+
 	for( uint16_t idxUE=0; idxUE<nbUE; idxUE++ ) // pour chaque UE
 	{
-// 1 - moyenne	
+// 1 - moyenne
 		resultsPerUE._moyParUE[idxUE] = std::accumulate(vec_values[idxUE].begin(), vec_values[idxUE].end(), 0. );
 		resultsPerUE._moyParUE[idxUE] /= nbEtud;
-		
+
 // 2 - mediane
 		std::sort( vec_values[idxUE].begin(), vec_values[idxUE].end() );
 		if( nbEtud % 2 ) // impair
 			resultsPerUE._medParUE[idxUE] = vec_values[idxUE].at(nbEtud/2);
 		else             // pair
-			resultsPerUE._medParUE[idxUE] = (		
+			resultsPerUE._medParUE[idxUE] = (
 				vec_values[idxUE].at(nbEtud/2) + vec_values[idxUE].at((nbEtud-1)/2)
 			) / 2.;
 	}
-	
+
 // TODO peut-être plus pertinent de faire une lambda par type de tri demandé ?
 	if( par.sortCriterion != SC_none )
 	{
@@ -599,7 +609,7 @@ openfile( std::string name, const Params& par, std::string ext )
 		oss << "_anon";
 	else
 		oss << "_noms";
-	
+
 	if( par.timestamp )
 		oss << "_" << par.date;
 	oss << "." << ext;
@@ -618,7 +628,7 @@ openfile( std::string name, const Params& par, std::string ext )
 auto
 htmlHeader( std::string title )
 {
-	return std::string( 
+	return std::string(
 		"<!doctype html>\n<html><head>\n" \
 		"<title>" + title + "</title>\n" \
 		"<meta charset='utf-8'>\n" \
@@ -690,12 +700,12 @@ printNotesHtml(
 	uint16_t i=0;
 	for( const auto& etud: vnotes )
 	{
-		std::cout << "NOM" << etud._nom << "\n";
+		std::cout << "NOM " << etud._nom << "\n";
 
 //		for( const auto p:  firstetud._notes )
 //			std::cout << p.first << "-" << p.second << "\n";
-		
-		
+
+
 		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
 		if( !par.anonyme )
 			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
@@ -705,7 +715,7 @@ printNotesHtml(
 		std::cout <<"code= " << code << "\n";
 			f << tdo << etud._notes.at( code ) << tdc;
 		}
-			
+
 		f << "</tr>\n";
 	}
 }
@@ -716,6 +726,7 @@ printMoyennesHtml(
 	const std::vector<Notes>& vnotes,
 	const ListeModules&       listeMod,
 	std::string               fout,           ///< output file name
+	std::string               title,          ///< html title
 	const Params&             par,
 	const Results&            res
 )
@@ -727,7 +738,7 @@ printMoyennesHtml(
 	f << std::setprecision(4);
 	f << htmlHeader( "Moyennes par UE" );
 
-	f << "<h1>Moyennes par UE</h1>\n";
+	f << "<h1>" << title << "</h1>\n";
 
 	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
@@ -807,17 +818,23 @@ main( int argc, const char* argv[] )
 {
 	std::cout << argv[0] << " version " << VERSION << "\n";
 
-	std::setlocale(LC_ALL, "fr_FR.UTF-8");
-
-	Params params( "calculmoy.ini" ); // nom du fichier de configuration
-	std::cout << params;
-//	std::exit(0);
-	auto fout="out/moy_ue";
 	if( argc < 3 )
 	{
 		std::cerr << "usage calculmoy coeff_file.csv notes.csv [outputfile]\n";
 		return 1;
 	}
+
+	std::setlocale(LC_ALL, "fr_FR.UTF-8");
+
+	Params params( "calculmoy.ini" ); // nom du fichier de configuration
+	std::cout << params;
+//	std::exit(0);
+	auto fout=std::string("out/moy_ue_S");
+	std::ostringstream oss;
+	oss << fout << params.psemestre;
+	fout = oss.str();
+	std::cout <<"fout="<<fout << "\n";
+
 	if( argc > 3 )
 	{
 		fout = argv[3];
@@ -841,12 +858,12 @@ main( int argc, const char* argv[] )
 
 	params.anonyme = true;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
-	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	printMoyennesHtml( vnotes, listeMod, fout, "Moy/UE", params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
 
 	params.anonyme = false;
 	printMoyennesCsv(  vnotes, listeMod, fout, params );
-	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	printMoyennesHtml( vnotes, listeMod, fout, "Moy/UE", params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 }
