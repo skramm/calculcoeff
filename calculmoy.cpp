@@ -35,6 +35,13 @@ Champ fichier de notes:
 		assert( a ); \
 	}
 
+#ifdef DEBUG
+	#define LOG(a) std::cout<<(a)
+#else
+	#define LOG(a) ;
+#endif
+
+
 auto tdo = "<td>";
 auto tdc = "</td>";
 
@@ -130,6 +137,8 @@ struct Params
 	std::string date;
 	bool        anonyme = true;
 	int         psemestre = 1;
+	bool        hasPrenom = true;
+	int         nbUE = -1;         ///< nb d'UE à considérer
 
 private:
 	boost::property_tree::ptree _ptree;
@@ -167,6 +176,12 @@ public:
 
 			psemestre = _ptree.get<int>( "misc.semestre", psemestre );
 			assert( psemestre > 0 && psemestre <= MAX_SEMESTRE );
+
+			hasPrenom = _ptree.get<int>( "misc.prenom", hasPrenom );
+			LOG( "hasPrenom=" << hasPrenom << "\n");
+
+			nbUE = _ptree.get<int>( "misc.nbUE", nbUE );
+			LOG( "nbUE=" << nbUE << "\n");
 
 			auto f = g_sortCritStr.find(sortCritName);
 			if( f == g_sortCritStr.end() )
@@ -257,7 +272,7 @@ struct Module
 		assert( vec.size()>3 );
 		_semestre = std::stoi( vec[0] );
 		_code = vec[1];
-		std::cout << __FUNCTION__ << "() semestre=" << _semestre << " code=" << _code << std::endl;
+		LOG( __FUNCTION__ << "() semestre=" << _semestre << " code=" << _code << std::endl);
 	}
 	void print() const
 	{
@@ -277,10 +292,9 @@ struct Module
 //--------------------------------------------------
 struct ListeModules
 {
-	std::vector<Module>      v_liste;      ///< liste de modules pédagogiques
-//	std::vector<uint32_t>    v_totCoeffUE; ///< totaux par UE
-	std::vector<std::vector<uint32_t>>    v_totCoeffUE; ///< totaux par UE, par semestre (vtor[4][2] correspond au semestre 5, 3ème UE)
-	std::vector<std::string> v_UE;         ///< noms des UE
+	std::vector<Module>                 v_liste;      ///< liste de modules pédagogiques
+	std::vector<std::vector<uint32_t>>  v_totCoeffUE; ///< totaux par UE, par semestre (vtor[4][2] correspond au semestre 5, 3ème UE)
+	std::vector<std::string>            v_UE;         ///< noms des UE
 
 /// Calcul totaux par UE, par semestre
 	void calculTotaux()
@@ -317,7 +331,6 @@ struct ListeModules
 		std::cout << "-Modules:\n";
 		for( const auto& m: v_liste )
 			m.print();
-
 	}
 };
 
@@ -449,13 +462,15 @@ compute(
 )
 {
 	auto nbUE = listeMod.v_UE.size();
+	if( par.nbUE > 0 )
+		nbUE = par.nbUE ;
 	std::cout << __FUNCTION__ << "(): nb etud=" << vnotes.size() << ", nb uE=" << nbUE << '\n';
 
 	const auto& v_listeMod = listeMod.v_liste;
 	std::vector<std::vector<double>> vec_values(nbUE);
 	const auto& totCoeffUE = listeMod.v_totCoeffUE.at(par.psemestre - 1);
 
-	for( auto& etud: vnotes )
+	for( auto& etud: vnotes ) // itération su chaque étudiant
 	{
 		std::cout << "\n* etud=" << etud._nom << '\n';
 		etud._moyUE.resize( nbUE );
@@ -619,7 +634,7 @@ openfile( std::string name, const Params& par, std::string ext )
 
 	if( par.timestamp )
 		oss << "_" << par.date;
-	oss << "_" << getStr( par.sortCriterion );
+	oss << "_S" << par.psemestre << "_" << getStr( par.sortCriterion );
 
 	oss << "." << ext;
 	std::string fname = oss.str();
@@ -689,13 +704,18 @@ printNotesHtml(
 	f << std::setprecision(4);
 	f << htmlHeader( "Notes" );
 
-	f << "<h1>Notes</h1>\n";
+	std::ostringstream oss;
+	oss << "Notes sem. " << par.psemestre;
+	f << "<h1>" << oss.str() << "</h1>\n";
 
 	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
 	if( !par.anonyme )
-		f << "<th>Nom</th><th>Prenom</th>\n";
-
+	{
+		f << "<th>Nom</th>";
+		if( par.hasPrenom )
+			f << "<th>Prenom</th>";
+	}
 
 	auto firstetud = vnotes.at(0);
 	std::vector<std::string> vcol;
@@ -717,14 +737,17 @@ printNotesHtml(
 
 		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
 		if( !par.anonyme )
-			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
+		{
+			f << tdo << etud._nom << tdc;
+			if( par.hasPrenom )
+				f << tdo << etud._prenom << tdc;
+		}
 		uint16_t i=0;
 		for( const auto& code: vcol )
 		{
-		std::cout <<"code= " << code << "\n";
+			std::cout <<"code= " << code << "\n";
 			f << tdo << etud._notes.at( code ) << tdc;
 		}
-
 		f << "</tr>\n";
 	}
 }
@@ -763,9 +786,19 @@ printMoyennesHtml(
 	f << "<table>\n"
 		<< "<tr><th></th><th>Numéro</th>";
 	if( !par.anonyme )
-		f << "<th>Nom</th><th>Prenom</th>\n";
+	{
+		f << "<th>Nom</th>";
+		if( par.hasPrenom )
+			f << "<th>Prenom</th>\n";
+	}
+	int j = 0;
 	for( const auto& ue: listeMod.v_UE )
-		f << "<th>" << ue << "</th>\n";
+	{
+		if( par.nbUE == -1 || j<par.nbUE )
+			f << "<th>" << ue << "</th>\n";
+		j++;
+	}
+
 	f << "<th>MOY  ETUDIANT</th>\n";
 	f << "</tr>\n";
 
@@ -791,14 +824,19 @@ printMoyennesHtml(
 		);
 	}
 
-
 	auto nbUE = listeMod.v_UE.size();
+	if( par.nbUE > 0 )
+		nbUE = par.nbUE;
 	uint16_t i=0;
 	for( const auto& etud: vnotes )
 	{
 		f << "<tr>" << tdo << ++i << tdc << tdo << etud._id << tdc;
 		if( !par.anonyme )
-			f << tdo << etud._nom << tdc << tdo << etud._prenom << tdc;
+		{
+			f << tdo << etud._nom << tdc;
+			if( par.hasPrenom )
+				f << tdo << etud._prenom << tdc;
+		}
 
 		for( const auto& moy: etud._moyUE )
 			f << tdo << moy << tdc;
@@ -916,5 +954,6 @@ main( int argc, const char* argv[] )
 
 	params.sortCriterion = SC_alpha;
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
+	printNotesHtml( vnotes, listeMod, "out/notes", params );
 }
 
