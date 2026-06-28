@@ -158,6 +158,7 @@ public:
 	Params( std::string filename ): Params()
 	{
 		bool hasIniFile = true;
+		std::cout << "parsing file " << filename << "n";
 		try
 		{
 			boost::property_tree::ini_parser::read_ini( filename, _ptree );
@@ -661,36 +662,6 @@ htmlHeader( std::string title )
 }
 
 //--------------------------------------------------
-/// WIP !!!
-void
-printCoeffsHtml(
-	const std::vector<Module>& coeffs,
-	std::string                fout,      ///< output file name
-	const Params&              par
-)
-{
-	auto f = openfile( fout, par, "html" );
-
-	f << std::setprecision(4);
-	f << htmlHeader( "Coefficients" );
-
-	f << "<h1>Coefficients</h1>\n";
-
-// comptage des semestres
-	for( const auto& mod: coeffs )
-	{
-	}
-
-	for( const auto& mod: coeffs )
-	{
-		std::cout << "code=" << mod._code << " sem=" << mod._semestre << "\n";
-		int i=0;
-		for( const auto& m: mod._coeffue )
-			std::cout << "  -"<< i++ << ":" << m << "\n";
-	}
-}
-
-//--------------------------------------------------
 void
 printNotesHtml(
 	const std::vector<Notes>& vnotes,
@@ -750,6 +721,45 @@ printNotesHtml(
 		}
 		f << "</tr>\n";
 	}
+}
+
+//--------------------------------------------------
+void
+printCoeffsHtml(
+	const ListeModules&  listeMod,
+	std::string          fout,        ///< output file name
+	const Params&        par          ///< parameters
+)
+{
+	auto f = openfile( fout, par, "html" );
+	f << htmlHeader( "Coefficients utilisés" );
+	f << "<h1>Coefficients semestre " << par.psemestre << "</h1>\n";
+
+	f << "<table><tr>\n<th></th>\n";
+	for( const auto& uename: listeMod.v_UE )
+		f << "<th>" << uename << "</th>\n";
+	f << "<th>Total</th></tr>\n";
+		
+	for( const auto& mod: listeMod.v_liste )
+	{
+		if( mod._semestre == par.psemestre )
+		{
+			f << "<tr>";
+			f << "<td>" << mod._code << "</td>";
+			uint16_t sum=0;
+			for( const auto& coeff: mod._coeffue )
+			{
+				f << "<td>" << coeff << "</td>";
+				sum += coeff;
+			}
+			f << "<td>" << sum << "</td>";
+			f << "</tr>\n";
+		}
+	}
+	f << "<tr><td></td>";
+	for( uint16_t i=0; i<listeMod.v_UE.size(); i++ )
+		f << "<td>" << listeMod.v_totCoeffUE.at(par.psemestre-1).at(i) << "</td>";
+	f << "</tr>\n</table>\n";
 }
 
 //--------------------------------------------------
@@ -859,7 +869,12 @@ printMoyennesHtml(
 
 //--------------------------------------------------
 void
-printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
+printMoyennesCsv(
+	const std::vector<Notes>& vnotes,
+	const ListeModules&       listeMod,
+	std::string               fout,
+	const Params&             par
+)
 {
 	auto f = openfile( fout, par, "csv" );
 
@@ -883,7 +898,27 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 	f << "\n";
 }
 
+//--------------------------------------------------
+/// make sure that the semester that is asked for has some modules in the list
+void
+checkCoeff(
+	const ListeModules& listeMod,
+	const Params& par
+)
+{
+	auto sem = par.psemestre;
+	uint16_t c=0;
+	for( const auto& mod: listeMod.v_liste )
+		if( mod._semestre == sem )
+			c++;
 
+	std::cout << "Trouvé " << c << " modules du semestre demandé (" << sem << ")\n";
+	if( c == 0 )
+	{
+		std::cerr << "Erreur, aucun module du semestre demandé (" << sem << ") dans le fichier de modules\n";
+		std::exit(1);
+	}
+}
 //--------------------------------------------------
 /// main. Requires 2 args, plus one optional
 /**
@@ -912,6 +947,7 @@ main( int argc, const char* argv[] )
 	{
 		fpar = argv[3];
 	}
+	std::cout << "Fichier de paramètres: " << fpar << '\n';
 	Params params( fpar ); // chargement config
 
 
@@ -935,6 +971,8 @@ main( int argc, const char* argv[] )
 
 	auto listeMod = readCSV_coeff( std::string(argv[1]) );
 	listeMod.print();
+	checkCoeff( listeMod, params );
+	
 //	printCoeffs( ue_coeffs.second.v_liste );
 	auto vnotes = readCSV_notes( std::string(argv[2]), listeMod, params );
 	auto results = compute( listeMod, vnotes, params );
@@ -955,5 +993,7 @@ main( int argc, const char* argv[] )
 	params.sortCriterion = SC_alpha;
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
+
+	printCoeffsHtml( listeMod, "out/coeffs", params );
 }
 

@@ -1,9 +1,8 @@
 set +x
 g++ -o calculmoy calculmoy.cpp
-exit 1
 if [ $? = 0 ]
 then
-	./calculmoy coeffs.csv liste_notes.csv out/outfile calculmoy.ini
+	./calculmoy coeffs.csv liste_notes.csv calculmoy.ini
 else
 	echo "Compilation error!"
 fi
