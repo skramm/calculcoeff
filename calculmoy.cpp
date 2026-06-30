@@ -293,7 +293,7 @@ struct Module
 struct ListeModules
 {
 	std::vector<Module>                 v_liste;      ///< liste de modules pédagogiques
-	std::vector<std::vector<uint32_t>>  v_totCoeffUE; ///< totaux par UE, par semestre (vtor[4][2] correspond au semestre 5, 3ème UE)
+	std::vector<std::vector<uint32_t>>  v_totCoeffUE; ///< totaux coeff par UE, par semestre (v_tot[4][2] correspond au semestre 5, 3ème UE)
 	std::vector<std::string>            v_UE;         ///< noms des UE
 
 /// Calcul totaux par UE, par semestre
@@ -754,6 +754,32 @@ printNotesHtml(
 
 //--------------------------------------------------
 void
+sortNotes( std::vector<Notes>& vnotes, SortCrit crit )
+{
+	if( crit != SC_none )
+	{
+	//		std::cout << "sorting !\n";
+		std::sort(
+			vnotes.begin(),
+			vnotes.end(),
+			[&crit]                               // lambda
+			(const Notes& n1, const Notes& n2)
+			{
+				switch( crit )
+				{
+					case SC_alpha: return n1._nom < n2._nom;
+					case SC_num:   return n1._id  < n2._id;
+					case SC_rankLH:  return n1._moy < n2._moy;
+					case SC_rankHL:  return n2._moy < n1._moy;
+					default: assert(0);
+				}
+			}
+		);
+	}
+
+}
+//--------------------------------------------------
+void
 printMoyennesHtml(
 	std::vector<Notes>&       vnotes,   ///< grades for each student. Not const because it gets sorted here
 	const ListeModules&       listeMod,
@@ -802,27 +828,7 @@ printMoyennesHtml(
 	f << "<th>MOY  ETUDIANT</th>\n";
 	f << "</tr>\n";
 
-
-	if( par.sortCriterion != SC_none )
-	{
-//		std::cout << "sorting !\n";
-		std::sort(
-			vnotes.begin(),
-			vnotes.end(),
-			[&par]                               // lambda
-			(const Notes& n1, const Notes& n2)
-			{
-				switch( par.sortCriterion )
-				{
-					case SC_alpha: return n1._nom < n2._nom;
-					case SC_num:   return n1._id  < n2._id;
-					case SC_rankLH:  return n1._moy < n2._moy;
-					case SC_rankHL:  return n2._moy < n1._moy;
-					default: assert(0);
-				}
-			}
-		);
-	}
+	sortNotes( vnotes, par.sortCriterion );
 
 	auto nbUE = listeMod.v_UE.size();
 	if( par.nbUE > 0 )
@@ -859,7 +865,12 @@ printMoyennesHtml(
 
 //--------------------------------------------------
 void
-printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod, std::string fout, const Params& par )
+printMoyennesCsv(
+	std::vector<Notes>&   vnotes, // not const, because gets sorted
+	const ListeModules&   listeMod,
+	std::string           fout,
+	const Params&         par
+)
 {
 	auto f = openfile( fout, par, "csv" );
 
@@ -871,13 +882,19 @@ printMoyennesCsv( const std::vector<Notes>& vnotes, const ListeModules& listeMod
 		f << sep << ue;
 	f << "\n" << std::setprecision(4);
 
+	sortNotes( vnotes, par.sortCriterion );
+
 	for( const auto& etud: vnotes )
 	{
 		f << etud._id;
 		if( !par.anonyme )
 			f << sep << etud._nom << sep << etud._prenom;
+		int i=0;
 		for( const auto& moy: etud._moyUE )
+		{
 			f << sep << moy;
+//			f << sep << listeMod.v_totCoeffUE.at(par.psemestre-1).at(i++);
+		}
 		f << sep << etud._moy << "\n";
 	}
 	f << "\n";
@@ -947,12 +964,13 @@ main( int argc, const char* argv[] )
 
 	params.anonyme = false;
 	params.sortCriterion = SC_rankHL;
-//	printMoyennesCsv(  vnotes, listeMod, fout, params );
+	printMoyennesCsv(  vnotes, listeMod, fout, params );
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
 	std::cout << "\nRésultats, voir fichier " << fout << '\n';
 
 	params.sortCriterion = SC_alpha;
+	printMoyennesCsv(  vnotes, listeMod, fout, params );
 	printMoyennesHtml( vnotes, listeMod, fout, params, results );
 	printNotesHtml( vnotes, listeMod, "out/notes", params );
 }
